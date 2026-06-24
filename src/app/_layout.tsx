@@ -1,15 +1,18 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+// Import the LoginScreen (update this path to match where you saved the file)
+import LoginScreen from './login'; 
+
+import "../global.css"
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      {/* Temporarily rendering ONLY the LoginScreen for UI testing */}
+      <LoginScreen />
     </ThemeProvider>
   );
 }
