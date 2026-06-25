@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Slot, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { AuthProvider, useAuth } from '../../context/AuthProvider'; // Double-check if this should be '../' or '../../' depending on your folder layout
+import { AuthProvider, useAuth } from '../../context/AuthProvider'; 
 import "../global.css";
 
 function NavigationGuard() {
@@ -16,11 +16,16 @@ function NavigationGuard() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      // FIX 1: Clean route path without group brackets
+      // If no user, redirect to auth screen
       router.replace('/auth');
     } else if (user && inAuthGroup) {
-      // FIX 2: If clean '/' fails on your downgraded SDK, explicitly hit the group index
-      router.replace('/');
+      // Dynamic fallback route based on the user's role string
+      // Normalizes "Citizen" -> "/citizen" and "Recycling Centre" -> "/recycling-centre"
+      const userRoleRoute = user.role 
+        ? `/${user.role.toLowerCase().replace(/\s+/g, '-')}` 
+        : '/';
+
+      router.replace(userRoleRoute);
     }
   }, [user, loading, segments, navigationState?.key]);
 

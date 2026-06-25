@@ -78,7 +78,7 @@ const AnimatedLeaf = ({ config }) => {
 // SIGN IN FORM COMPONENT
 // ==========================================
 const LoginForm = () => {
-  const { login } = useAuth();
+  const { login , user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
