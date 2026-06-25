@@ -174,38 +174,60 @@ const RegisterForm = ({ onSuccess }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("Citizen");
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Missing Fields", "Please fill in all required fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Password Mismatch", "Passwords do not match.");
+      return;
+    }
+
+    if (!agreeTerms) {
+      Alert.alert("Terms Required", "Please agree to the Terms of Service and Privacy Policy.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await api.post("/auth/register", { name, email, password });
+      // Syncing with Web payload format: includes the user role
+      await api.post("/auth/register", { 
+        name, 
+        email, 
+        password, 
+        role: selectedRole 
+      });
+      
       Alert.alert("Success!", "Your account has been created. Please sign in.");
       onSuccess();
     } catch (error: any) {
       console.error(error);
       const message = error.response?.data?.message || "An error occurred during registration.";
-      Alert.alert("Error", message);
-    } {
+      Alert.alert("Registration Error", message);
+    } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
     <View className="flex flex-col gap-5 w-full">
+      {/* Full Name */}
       <View className="flex flex-col gap-1.5">
         <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Full Name</Text>
         <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
           <MaterialIcons name="person-outline" size={20} color="#6d7a6e" />
           <TextInput
             className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Enter your full name"
+            placeholder="Karim Benali"
             placeholderTextColor="#bccabc"
             autoCapitalize="words"
             value={name}
@@ -214,13 +236,14 @@ const RegisterForm = ({ onSuccess }) => {
         </View>
       </View>
 
+      {/* Email */}
       <View className="flex flex-col gap-1.5">
         <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Email</Text>
         <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
           <MaterialIcons name="mail-outline" size={20} color="#6d7a6e" />
           <TextInput
             className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Enter your email"
+            placeholder="you@example.com"
             placeholderTextColor="#bccabc"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -230,13 +253,14 @@ const RegisterForm = ({ onSuccess }) => {
         </View>
       </View>
 
+      {/* Password */}
       <View className="flex flex-col gap-1.5">
         <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Password</Text>
         <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
           <MaterialIcons name="lock-outline" size={20} color="#6d7a6e" />
           <TextInput
             className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Create a password"
+            placeholder="Min. 8 characters"
             placeholderTextColor="#bccabc"
             secureTextEntry={!showPassword}
             value={password}
@@ -248,7 +272,71 @@ const RegisterForm = ({ onSuccess }) => {
         </View>
       </View>
 
-      <TouchableOpacity activeOpacity={0.8} onPress={handleRegister} disabled={isSubmitting} className="mt-6 w-full">
+      {/* Confirm Password */}
+      <View className="flex flex-col gap-1.5">
+        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Confirm Password</Text>
+        <View className={`w-full h-[52px] bg-[#F9F9F9] border rounded-2xl flex-row items-center px-4 ${password && confirmPassword && password !== confirmPassword ? "border-red-400" : "border-[#ECECEC]"}`}>
+          <MaterialIcons name="lock-outline" size={20} color={password && confirmPassword && password !== confirmPassword ? "#ef4444" : "#6d7a6e"} />
+          <TextInput
+            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
+            placeholder="••••••••"
+            placeholderTextColor="#bccabc"
+            secureTextEntry={!showConfirmPassword}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
+          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} className="p-1">
+            <MaterialIcons name={showConfirmPassword ? "visibility" : "visibility-off"} size={20} color="#6d7a6e" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Role Selection Grid */}
+      <View className="flex flex-col gap-2 mt-1">
+        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">I am a...</Text>
+        <View className="flex-row flex-wrap justify-between gap-y-3">
+          <TouchableOpacity 
+            onPress={() => setSelectedRole("CITIZEN")} 
+            className={`w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Citizen" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+          >
+            <FontAwesome5 name="leaf" size={15} color={selectedRole === "CITIZEN" ? "#27AE60" : "#6d7a6e"} />
+            <Text className={`text-[13px] font-medium ${selectedRole === "CITIZEN" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Citizen</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => setSelectedRole("COLLECTOR")} 
+            className={`w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Collector" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+          >
+            <FontAwesome5 name="truck" size={14} color={selectedRole === "COLLECTOR" ? "#27AE60" : "#6d7a6e"} />
+            <Text className={`text-[13px] font-medium ${selectedRole === "COLLECTOR" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Collector</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => setSelectedRole("RECYCLING_CENTER")} 
+            className={`w-full h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Recycling Centre" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+          >
+            <FontAwesome5 name="industry" size={15} color={selectedRole === "RECYCLING_CENTER" ? "#27AE60" : "#6d7a6e"} />
+            <Text className={`text-[13px] font-medium ${selectedRole === "RECYCLING_CENTER" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Recycling Centre</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Terms Checkbox */}
+      <TouchableOpacity 
+        className="flex-row items-center gap-3 mt-1" 
+        onPress={() => setAgreeTerms(!agreeTerms)} 
+        activeOpacity={0.7}
+      >
+        <View className={`w-5 h-5 rounded border items-center justify-center ${agreeTerms ? "bg-[#27AE60] border-[#27AE60]" : "bg-[#F9F9F9] border-[#ECECEC]"}`}>
+          {agreeTerms && <MaterialIcons name="check" size={14} color="white" />}
+        </View>
+        <Text className="text-[12px] text-[#3d4a3f] flex-1 leading-4">
+          I agree to the <Text className="text-[#27AE60] font-semibold">Terms of Service</Text> and <Text className="text-[#27AE60] font-semibold">Privacy Policy</Text>
+        </Text>
+      </TouchableOpacity>
+
+      {/* Submit Button */}
+      <TouchableOpacity activeOpacity={0.8} onPress={handleRegister} disabled={isSubmitting} className="mt-4 w-full">
         <LinearGradient
           colors={isSubmitting ? ["#8DE3A6", "#8DE3A6"] : ["#27AE60", "#2ECC71"]}
           start={{ x: 0, y: 0 }}
