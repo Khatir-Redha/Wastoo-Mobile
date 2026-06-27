@@ -81,7 +81,7 @@ export default function WasteDetailScreen() {
   const priceText = (post as any).price ? `$${(post as any).price}/ton` : 'FREE';
   const weightText = (post as any).weight || 'TBD kg';
   const locationText = (post as any).location || 'Algiers, Algeria';
-  const descriptionText = (post as any).content || 'No description provided.';
+  const descriptionText = (post as any).description || 'No description provided.';
   const categoryText = post.category ? post.category.charAt(0).toUpperCase() + post.category.slice(1) : 'General';
   const statusText = post.status ? post.status.charAt(0).toUpperCase() + post.status.slice(1).toLowerCase() : 'Open';
 
@@ -204,7 +204,7 @@ export default function WasteDetailScreen() {
             />
             <View className="flex-1">
               <Text className="text-[16px] font-semibold text-[#1b1c1c] mb-0.5">
-                {(post as any).author?.name || 'User #' + post.author_id}
+                {(post as any).User?.name || 'User #' + post.author_id}
               </Text>
               <View className="flex-row items-center">
                 <Text className="text-[#8A8F87] text-[13px]">Citizen</Text>

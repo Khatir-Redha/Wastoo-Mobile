@@ -12,9 +12,10 @@ export interface GetPostsQueryDto {
 }
 
 export interface CreatePostDto {
-  title: string; // Adjust based on your actual backend Prisma schema
-  content: string; // Adjust based on your actual backend Prisma schema
-  category?: string;
+  title: string;
+  description: string;
+  category: string;
+  quantity: number;
   images: string[];
 }
 
@@ -32,7 +33,7 @@ export interface Post {
   createdAt: string;
   updatedAt: string;
   images: PostImage[];
-  // add other fields like title, content based on your Prisma schema
+  // add other fields like title, description based on your Prisma schema
 }
 
 export interface PaginatedPosts {
@@ -45,6 +46,11 @@ export interface PaginatedPosts {
   };
 }
 
+export interface UploadImageResult {
+  url: string;
+  publicId: string;
+}
+
 // ==========================================
 // POST SERVICE
 // ==========================================
@@ -54,7 +60,6 @@ class PostService {
    * Fetch all posts with optional filtering and pagination
    */
   static async getAllPosts(query?: GetPostsQueryDto): Promise<PaginatedPosts> {
-    // Note: Make sure your NestJS controller uses @Query() instead of @Body()
     const response = await api.get('/post', { params: query });
     return response.data;
   }
@@ -88,6 +93,36 @@ class PostService {
    */
   static async deletePost(id: number): Promise<string> {
     const response = await api.delete(`/post/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Upload an image to Cloudinary via the backend (Requires Auth)
+   */
+  static async uploadImage(uri: string): Promise<UploadImageResult> {
+    const filename = uri.split('/').pop() || 'photo.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1].toLowerCase() : 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    const response = await api.post('/cloudinary/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  /**
+   * Delete an uploaded image from Cloudinary (Requires Auth)
+   */
+  static async deleteImage(publicId: string): Promise<{ deleted: boolean }> {
+    const response = await api.delete(`/cloudinary/${publicId}`);
     return response.data;
   }
 }

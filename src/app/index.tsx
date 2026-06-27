@@ -14,6 +14,7 @@ export default function HomeScreen() {
       const userRoleRoute = `/${user.role.toLowerCase().replace(/\s+/g, '-')}`;
       router.replace(userRoleRoute);
     }
+    console.log(user)
   }, [user, router]);
 
   return (

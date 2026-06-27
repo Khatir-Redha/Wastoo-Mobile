@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, TouchableOpacity, Platform } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 
 export default function TabsLayout() {
+  const router = useRouter();
   return (
     <View className="flex-1">
       <Tabs
@@ -58,6 +59,7 @@ export default function TabsLayout() {
           shadowRadius: 4,
           elevation: 5,
         }}
+        onPress={() => router.push('/create-post')}
       >
         <Feather name="plus" size={30} color="white" />
       </TouchableOpacity>
