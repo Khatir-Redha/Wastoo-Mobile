@@ -1,41 +1,28 @@
 import React, { useEffect } from 'react';
-import { Slot, useRouter, useSegments, useRootNavigationState } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
-import { AuthProvider, useAuth } from '../../context/AuthProvider'; 
+import { Slot, useRouter, useSegments } from 'expo-router';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { AuthProvider, useAuth } from '../../context/AuthProvider';
 import "../global.css";
 
 function NavigationGuard() {
-  const { user, loading } = useAuth(); 
+  const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const navigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (loading || !navigationState?.key) return;
+    if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      // If no user, redirect to auth screen
-      router.replace('/auth');
+      router.replace('/auth' as any);
     } else if (user && inAuthGroup) {
-      // Dynamic fallback route based on the user's role string
-      // Normalizes "Citizen" -> "/citizen" and "Recycling Centre" -> "/recycling-centre"
-      const userRoleRoute = user.role 
-        ? `/${user.role.toLowerCase().replace(/\s+/g, '-')}` 
+      const userRoleRoute = user.role
+        ? `/${user.role.toLowerCase().replace(/\s+/g, '-')}`
         : '/';
-
-      router.replace(userRoleRoute);
+      router.replace(userRoleRoute as any);
     }
-  }, [user, loading, segments, navigationState?.key]);
-
-  if (loading || !navigationState?.key) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
-        <ActivityIndicator size="large" color="#27AE60" />
-      </View>
-    );
-  }
+  }, [user, loading, segments]);
 
   return <Slot />;
 }
@@ -47,3 +34,12 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

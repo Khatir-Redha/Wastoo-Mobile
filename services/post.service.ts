@@ -65,6 +65,14 @@ class PostService {
   }
 
   /**
+   * Fetch all posts created by the currently authenticated user
+   */
+  static async getMyPosts(): Promise<Post[]> {
+    const response = await api.get('/post/myPosts');
+    return response.data;
+  }
+
+  /**
    * Fetch a single post by ID
    */
   static async getPostById(id: number): Promise<Post> {

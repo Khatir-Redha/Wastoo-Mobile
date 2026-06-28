@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router"; // 1. Import useRouter
+import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import PostService, { Post } from "../../../../services/post.service"; // Adjust path to where you saved it
 
@@ -76,6 +76,7 @@ export default function BrowseScreen() {
     console.log(displayImage);
   });
   return (
+    <View style={{ flex: 1 }}>
     <SafeAreaView
       className="flex-1 bg-[#FAFAFA]"
       style={{ paddingTop: Platform.OS === "android" ? 40 : 0 }}
@@ -263,5 +264,30 @@ export default function BrowseScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+
+      {/* FAB */}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        style={{
+          position: 'absolute',
+          bottom: (Platform.OS === 'ios' ? 85 : 65) + 16,
+          right: 24,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#4ADE80',
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          elevation: 5,
+        }}
+        onPress={() => router.push('/create-post')}
+      >
+        <Feather name="plus" size={30} color="white" />
+      </TouchableOpacity>
+    </View>
   );
 }

@@ -297,7 +297,8 @@ const RegisterForm = ({ onSuccess }) => {
         <View className="flex-row flex-wrap justify-between gap-y-3">
           <TouchableOpacity 
             onPress={() => setSelectedRole("CITIZEN")} 
-            className={`w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Citizen" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+            style={selectedRole === "CITIZEN" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
+            className="w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
           >
             <FontAwesome5 name="leaf" size={15} color={selectedRole === "CITIZEN" ? "#27AE60" : "#6d7a6e"} />
             <Text className={`text-[13px] font-medium ${selectedRole === "CITIZEN" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Citizen</Text>
@@ -305,7 +306,8 @@ const RegisterForm = ({ onSuccess }) => {
 
           <TouchableOpacity 
             onPress={() => setSelectedRole("COLLECTOR")} 
-            className={`w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Collector" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+            style={selectedRole === "COLLECTOR" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
+            className="w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
           >
             <FontAwesome5 name="truck" size={14} color={selectedRole === "COLLECTOR" ? "#27AE60" : "#6d7a6e"} />
             <Text className={`text-[13px] font-medium ${selectedRole === "COLLECTOR" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Collector</Text>
@@ -313,7 +315,8 @@ const RegisterForm = ({ onSuccess }) => {
 
           <TouchableOpacity 
             onPress={() => setSelectedRole("RECYCLING_CENTER")} 
-            className={`w-full h-[48px] border rounded-xl flex-row items-center justify-center gap-2 ${selectedRole === "Recycling Centre" ? "border-[#27AE60] bg-[#27AE60]/10" : "border-[#ECECEC] bg-[#F9F9F9]"}`}
+            style={selectedRole === "RECYCLING_CENTER" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
+            className="w-full h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
           >
             <FontAwesome5 name="industry" size={15} color={selectedRole === "RECYCLING_CENTER" ? "#27AE60" : "#6d7a6e"} />
             <Text className={`text-[13px] font-medium ${selectedRole === "RECYCLING_CENTER" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Recycling Centre</Text>
@@ -404,10 +407,10 @@ export default function AuthScreen() {
         <View className="flex-1 bg-white px-6 pt-4 pb-8 z-20">
           
           <View className="w-full h-12 bg-[#f0eded] rounded-full p-1 flex-row mb-8">
-            <TouchableOpacity onPress={() => setIsLogin(true)} className={`flex-1 rounded-full items-center justify-center ${isLogin ? 'bg-white' : ''}`}>
+            <TouchableOpacity onPress={() => setIsLogin(true)} style={isLogin ? { backgroundColor: 'white' } : {}} className="flex-1 rounded-full items-center justify-center">
               <Text className={`font-semibold text-[14px] ${isLogin ? 'text-[#1E5631]' : 'text-[#8A8F87]'}`}>Sign In</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsLogin(false)} className={`flex-1 rounded-full items-center justify-center ${!isLogin ? 'bg-white' : ''}`}>
+            <TouchableOpacity onPress={() => setIsLogin(false)} style={!isLogin ? { backgroundColor: 'white' } : {}} className="flex-1 rounded-full items-center justify-center">
               <Text className={`font-semibold text-[14px] ${!isLogin ? 'text-[#1E5631]' : 'text-[#8A8F87]'}`}>Create Account</Text>
             </TouchableOpacity>
           </View>

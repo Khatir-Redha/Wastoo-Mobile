@@ -6,11 +6,14 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import PostService, { Post } from '../../../../services/post.service'; // Adjust path if needed
+
+const { width: windowWidth } = Dimensions.get('window');
 
 export default function WasteDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -19,6 +22,7 @@ export default function WasteDetailScreen() {
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   // Fetch individual post data on mount / ID change
   useEffect(() => {
@@ -27,7 +31,6 @@ export default function WasteDetailScreen() {
     const fetchPostDetails = async () => {
       setIsLoading(true);
       try {
-        // Convert route param string to number for your NestJS/Prisma backend
         const postId = Number(id);
         if (isNaN(postId)) throw new Error("Invalid Post ID");
 
@@ -42,6 +45,14 @@ export default function WasteDetailScreen() {
 
     fetchPostDetails();
   }, [id]);
+
+  // Handle image scroll to update pagination dots
+  const handleScroll = (event: any) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = event.nativeEvent.contentOffset.x / slideSize;
+    const roundIndex = Math.round(index);
+    setActiveIndex(roundIndex);
+  };
 
   // --- Loading State ---
   if (isLoading) {
@@ -73,11 +84,10 @@ export default function WasteDetailScreen() {
   }
 
   // --- Data Mapping & Fallbacks ---
-  const displayImage = post.images && post.images.length > 0 
-    ? post.images[0].url 
-    : 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+  const imagesToDisplay = post.images && post.images.length > 0 
+    ? post.images 
+    : [{ url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80' }];
 
-  // Fallbacks for schema fields that might not be in your primitive DTO yet
   const priceText = (post as any).price ? `$${(post as any).price}/ton` : 'FREE';
   const weightText = (post as any).weight || 'TBD kg';
   const locationText = (post as any).location || 'Algiers, Algeria';
@@ -94,12 +104,26 @@ export default function WasteDetailScreen() {
       >
         {/* --- Top Image Header --- */}
         <View className="relative w-full h-[400px]">
-          <Image 
-            source={{ uri: displayImage }} 
+          {/* Image Carousel */}
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             className="w-full h-full"
-            resizeMode="cover"
-          />
-          <View className="absolute inset-0 bg-black/10" />
+          >
+            {imagesToDisplay.map((img: any, index: number) => (
+              <Image 
+                key={index}
+                source={{ uri: img.url || img }} // Handle both object `{url: string}` or primitive string array if backend varies
+                style={{ width: windowWidth, height: 400 }}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+
+          <View className="absolute inset-0 bg-black/10" pointerEvents="none" />
 
           {/* Top Actions: Back & Heart */}
           <View className="absolute top-[50px] w-full px-6 flex-row justify-between items-center">
@@ -125,10 +149,14 @@ export default function WasteDetailScreen() {
           </View>
 
           {/* Pagination Dots */}
-          <View className="absolute bottom-10 w-full flex-row justify-center items-center space-x-1.5">
-            <View className="w-6 h-1.5 bg-white rounded-full" />
-            <View className="w-1.5 h-1.5 bg-white/60 rounded-full" />
-            <View className="w-1.5 h-1.5 bg-white/60 rounded-full" />
+          <View className="absolute bottom-10 w-full flex-row justify-center items-center">
+            {imagesToDisplay.map((_, index) => (
+              <View 
+                key={index}
+                className={`h-1.5 rounded-full ${activeIndex === index ? 'w-6 bg-white' : 'w-1.5 bg-white/60'}`}
+                style={{ marginHorizontal: 3 }}
+              />
+            ))}
           </View>
         </View>
 
@@ -197,7 +225,6 @@ export default function WasteDetailScreen() {
             className="flex-row items-center bg-white border border-[#F0F0F0] p-4 rounded-[20px]"
             style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 }}
           >
-            {/* Note: Map to dynamic author data when backend includes relations */}
             <Image 
               source={{ uri: (post as any).author?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80' }} 
               className="w-12 h-12 rounded-full mr-4 bg-gray-200"
