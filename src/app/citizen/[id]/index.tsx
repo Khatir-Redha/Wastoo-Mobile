@@ -15,6 +15,9 @@ import PostService, { Post } from '../../../../services/post.service'; // Adjust
 
 const { width: windowWidth } = Dimensions.get('window');
 
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80';
+
 export default function WasteDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -84,9 +87,20 @@ export default function WasteDetailScreen() {
   }
 
   // --- Data Mapping & Fallbacks ---
-  const imagesToDisplay = post.images && post.images.length > 0 
-    ? post.images 
-    : [{ url: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80' }];
+  
+  // Safely extract string URLs from whatever format post.images might be in
+  const imagesToDisplay = (post.images && Array.isArray(post.images) && post.images.length > 0)
+    ? post.images.map((img: any) => {
+        if (typeof img === 'string') return img; // It's already a string array
+        if (img && typeof img.url === 'string') return img.url; // It's an object with a URL
+        return DEFAULT_IMAGE; // Fallback if the object is empty/malformed
+      })
+    : [DEFAULT_IMAGE];
+
+  // Safely extract avatar
+  const avatarUrl = typeof (post as any).author?.avatar === 'string' 
+    ? (post as any).author.avatar 
+    : DEFAULT_AVATAR;
 
   const priceText = (post as any).price ? `$${(post as any).price}/ton` : 'FREE';
   const weightText = (post as any).weight || 'TBD kg';
@@ -113,10 +127,10 @@ export default function WasteDetailScreen() {
             scrollEventThrottle={16}
             className="w-full h-full"
           >
-            {imagesToDisplay.map((img: any, index: number) => (
+            {imagesToDisplay.map((imgUrl: string, index: number) => (
               <Image 
                 key={index}
-                source={{ uri: img.url || img }} // Handle both object `{url: string}` or primitive string array if backend varies
+                source={{ uri: imgUrl }} // Now guaranteed to be a string
                 style={{ width: windowWidth, height: 400 }}
                 resizeMode="cover"
               />
@@ -226,7 +240,7 @@ export default function WasteDetailScreen() {
             style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 }}
           >
             <Image 
-              source={{ uri: (post as any).author?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80' }} 
+              source={{ uri: avatarUrl }} // Now guaranteed to be a string
               className="w-12 h-12 rounded-full mr-4 bg-gray-200"
             />
             <View className="flex-1">

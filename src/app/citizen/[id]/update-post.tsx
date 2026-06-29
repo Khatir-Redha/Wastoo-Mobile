@@ -33,7 +33,6 @@ interface UploadedImage {
 
 export default function UpdatePostScreen() {
   const router = useRouter();
-  // Get the ID of the post we are updating from the route parameters
   const { id } = useLocalSearchParams();
   const postId = Number(id);
 
@@ -71,16 +70,17 @@ export default function UpdatePostScreen() {
         setCategory(post.category || 'ORGANIC');
         setWeight((post as any).quantity || 2.5);
         
-        // Map existing images. Note: If your backend doesn't return publicId for existing images, 
-        // we use the URL as a fallback ID for the UI mapping.
-        if (post.images && post.images.length > 0) {
-          setImages(post.images.map(img => ({
-            url: img.url,
-            publicId: (img as any).publicId || img.url 
-          })));
+        // Robust image mapping to prevent removal/crash bugs
+        if (post.images && Array.isArray(post.images) && post.images.length > 0) {
+          const mappedImages = post.images.map((img: any, index: number) => {
+            const urlStr = typeof img === 'string' ? img : (img?.url || '');
+            const pubId = typeof img === 'string' ? img : (img?.publicId || urlStr || `fallback-id-${index}`);
+            return { url: urlStr, publicId: pubId };
+          }).filter(img => img.url !== ''); // Ensure no empty URLs get through
+          
+          setImages(mappedImages);
         }
 
-        // If your backend tracks price/type, pre-fill those too
         if ((post as any).price > 0) {
           setIsSelling(true);
           setPrice((post as any).price.toString());
@@ -150,11 +150,12 @@ export default function UpdatePostScreen() {
   };
 
   const removeImage = async (image: UploadedImage) => {
-    // Optimistically remove from UI first
+    // 1. Remove from UI state based on exact match
     setImages((prev) => prev.filter((img) => img.publicId !== image.publicId));
+    
+    // 2. Attempt to delete from Cloudinary if it's a new upload with a valid public ID
     try {
-      // Only try to delete from Cloudinary if it's a real publicId (not our URL fallback)
-      if (!image.publicId.startsWith('http')) {
+      if (!image.publicId.startsWith('http') && !image.publicId.startsWith('fallback')) {
         await PostService.deleteImage(image.publicId);
       }
     } catch (error) {
@@ -180,12 +181,8 @@ export default function UpdatePostScreen() {
         description,
         quantity: Number(weight),
         images: images.map((img) => img.url),
-        // Include price/type if your API expects them on update
-        // price: isSelling ? Number(price) : 0,
-        // type: isSelling ? 'SELL' : 'GIVEAWAY',
       };
 
-      // Call updatePost instead of createPost
       await PostService.updatePost(postId, updateData);
       router.back();
     } catch (error) {
@@ -194,6 +191,34 @@ export default function UpdatePostScreen() {
     } finally {
       setIsPublishing(false);
     }
+  };
+
+  // --- DELETE POST LOGIC ---
+  const handleDeletePost = () => {
+    Alert.alert(
+      'Delete Listing',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            setIsPublishing(true);
+            try {
+              await PostService.deletePost(postId);
+              // Navigate back to the Activity/Home screen after deletion
+              await PostService.getMyPosts();
+              router.back(); 
+            } catch (error) {
+              console.error('Failed to delete post:', error);
+              Alert.alert('Error', 'Could not delete the post. Please try again.');
+              setIsPublishing(false);
+            }
+          } 
+        }
+      ]
+    );
   };
 
   if (isFetching) {
@@ -211,12 +236,18 @@ export default function UpdatePostScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-3 border-b border-[#ECECEC] bg-white">
-          <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-            <MaterialIcons name="arrow-back" size={24} color="#006d37" />
+        {/* Header with Delete Button */}
+        <View className="flex-row items-center justify-between px-4 py-3 border-b border-[#ECECEC] bg-white">
+          <View className="flex-row items-center">
+            <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
+              <MaterialIcons name="arrow-back" size={24} color="#006d37" />
+            </TouchableOpacity>
+            <Text className="text-[22px] font-bold text-[#006d37] ml-2 tracking-tight">Edit Listing</Text>
+          </View>
+          
+          <TouchableOpacity onPress={handleDeletePost} className="p-2 -mr-2">
+            <MaterialCommunityIcons name="trash-can-outline" size={24} color="#d32f2f" />
           </TouchableOpacity>
-          <Text className="text-[22px] font-bold text-[#006d37] ml-2 tracking-tight">Edit Listing</Text>
         </View>
 
         <ScrollView
@@ -239,7 +270,7 @@ export default function UpdatePostScreen() {
                       />
                       <TouchableOpacity
                         onPress={() => removeImage(img)}
-                        className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm"
+                        className="absolute -top-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-[#ECECEC]"
                       >
                         <MaterialIcons name="cancel" size={20} color="#d32f2f" />
                       </TouchableOpacity>

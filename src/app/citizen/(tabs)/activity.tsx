@@ -135,7 +135,21 @@ export default function ActivityScreen() {
               </View>
             ) : (
               filteredPosts.map((post) => {
-                const displayImg = post.images && post.images.length > 0 ? post.images[0].url : 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+                
+                let rawUrl = post.images?.[0]?.url?.trim();
+
+              // 2. Fallback if empty
+              if (!rawUrl) {
+                rawUrl =
+                  "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80";
+              } else if (
+                rawUrl.includes("cloudinary.com") &&
+                rawUrl.startsWith("http://")
+              ) {
+                rawUrl = rawUrl.replace("http://", "https://");
+              }
+
+              const displayImage = rawUrl;
 
                 return (
                   // <-- Changed View to TouchableOpacity and added the route push
@@ -145,7 +159,7 @@ export default function ActivityScreen() {
                     onPress={() => router.push(`/citizen/${post.id}/update-post`)}
                     className="bg-white border border-[#ECECEC] rounded-[16px] p-3 flex-row items-center"
                   >
-                    <Image source={{ uri: displayImg }} className="w-16 h-16 rounded-[8px] bg-[#F9F9F9]" resizeMode="cover" />
+                    <Image source={{ uri: displayImage }} className="w-16 h-16 rounded-[8px] bg-[#F9F9F9]" resizeMode="cover" />
                     <View className="flex-1 ml-4 justify-center">
                       <Text className="font-semibold text-[14px] text-[#1b1c1c] mb-1" numberOfLines={1}>
                         {(post as any).title || 'Untitled Listing'}
