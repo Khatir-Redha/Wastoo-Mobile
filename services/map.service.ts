@@ -1,4 +1,4 @@
-import api from '../lib/api'
+import api from "../lib/api";
 
 export enum WasteCategory {
   ALL,
@@ -12,31 +12,51 @@ export enum WasteCategory {
   MIXED,
 }
 
+export enum PostStatus {
+  OPEN = "OPEN",
+  CLAIMED = "CLAIMED",
+  DELETED = "DELETED",
+  COMPLETED = "COMPLETED",
+}
 
 export interface getMapPostsDTO {
-    latitude: number,
-    longitude: number,
-    radius: number,
-    category? : WasteCategory
+  latitude: number;
+  longitude: number;
+  radius: number;
+  category?: WasteCategory;
 }
 
 export interface MapPostsResponse {
-    id: number,
-    latitude: number,
-    longitude: number,
-    category: WasteCategory,
-    title: string,
+  id: number;
+  latitude: number;
+  longitude: number;
+  category: WasteCategory;
+  title: string;
+  status?: PostStatus;
+}
+
+export interface MapCenterResponse {
+  id: number;
+  latitude: number;
+  longitude: number;
+  address: string,
+  name: string;
+  opening_hours: string;
+  accepted_categories: WasteCategory[];
 }
 
 class MapService {
-    
-    static async getMapPosts(query: getMapPostsDTO): Promise<[MapPostsResponse]>{
-        
-        const res = await api.get('/map/posts', {params: query})
-        console.log(res.data);
-        return res.data
-        
-    }
+  static async getMapPosts(query: getMapPostsDTO): Promise<[MapPostsResponse]> {
+    const res = await api.get("/map/posts", { params: query });
+    return res.data;
+  }
+
+  static async getMapCenters(
+    query: getMapPostsDTO,
+  ): Promise<MapCenterResponse[]> {
+    const res = await api.get("map/centers", { params: query });
+    return res.data;
+  }
 }
 
 export default MapService;
