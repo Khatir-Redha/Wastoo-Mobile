@@ -1,6 +1,7 @@
 import api from '../lib/api'
 
 export enum WasteCategory {
+  ALL,
   PLASTIC,
   GLASS,
   PAPER,
@@ -16,6 +17,7 @@ export interface getMapPostsDTO {
     latitude: number,
     longitude: number,
     radius: number,
+    category? : WasteCategory
 }
 
 export interface MapPostsResponse {
@@ -29,6 +31,7 @@ export interface MapPostsResponse {
 class MapService {
     
     static async getMapPosts(query: getMapPostsDTO): Promise<[MapPostsResponse]>{
+        
         const res = await api.get('/map/posts', {params: query})
         console.log(res.data);
         return res.data

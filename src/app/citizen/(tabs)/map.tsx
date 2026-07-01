@@ -1,18 +1,33 @@
 import MapView, { Marker } from "react-native-maps";
-import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
-import Slider from "@react-native-community/slider";
+import {
+  View,
+  StyleSheet,
+  Text,
+  ActivityIndicator,
+  ScrollView,
+  Pressable,
+} from "react-native";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
-import MapService, { MapPostsResponse, WasteCategory } from "../../../../services/map.service";
+import MapService, {
+  MapPostsResponse,
+  WasteCategory,
+} from "../../../../services/map.service";
 
 export default function MapScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null,
+  );
   const [mapPosts, setMapPosts] = useState<MapPostsResponse[]>([]);
   const [radius, setRadius] = useState(10);
   const [loadingPosts, setLoadingPosts] = useState(false);
-  const [category, setCategory] = useState<WasteCategory | null>(null)
+  const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
+  const [showRadiusPicker, setShowRadiusPicker] = useState(false);
+  const radiusOptions = [10, 20, 30, 40, 50, 75, 100];
 
-  // 1. Get Device Location ONCE on mount
+  const categories: (string | WasteCategory)[] = [
+    ...Object.values(WasteCategory),
+  ];
   useEffect(() => {
     const getLocation = async () => {
       try {
@@ -22,7 +37,6 @@ export default function MapScreen() {
           return;
         }
 
-        // Balanced accuracy is faster and more reliable than Highest accuracy
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
@@ -30,7 +44,6 @@ export default function MapScreen() {
         setLocation(currentLocation);
       } catch (err) {
         console.log("location fetch failed, trying last known location:", err);
-        // Fallback: Try getting the last known location if current fails
         const lastKnown = await Location.getLastKnownPositionAsync({});
         if (lastKnown) setLocation(lastKnown);
       }
@@ -50,6 +63,7 @@ export default function MapScreen() {
           latitude,
           longitude,
           radius,
+          ...(category !== "ALL" && { category }),
         });
         setMapPosts(nearByPosts);
       } catch (err) {
@@ -61,7 +75,7 @@ export default function MapScreen() {
     };
 
     fetchPosts();
-  }, [location, radius]);
+  }, [location, radius, category]);
 
   if (!location) {
     return (
@@ -88,7 +102,7 @@ export default function MapScreen() {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
           }}
-          pinColor="blue" // Distinct color for user location
+          pinColor="blue"
         />
 
         {mapPosts.map((e, index) => (
@@ -101,20 +115,63 @@ export default function MapScreen() {
           />
         ))}
       </MapView>
-
-      <View style={styles.sliderContainer}>
-        <Text style={styles.radiusText}>
-          Radius: {radius} km {loadingPosts && "(Updating...)"}
-        </Text>
-
-        <Slider
-          minimumValue={10}
-          maximumValue={100}
-          step={10}
-          value={radius}
-          onValueChange={setRadius}
-        />
+      <View style={styles.chipsWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContainer}
+        >
+          {categories.map((item) => (
+            <Pressable
+              key={String(item)}
+              onPress={() => setCategory(item)}
+              style={[styles.chip, category === item && styles.selectedChip]}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  category === item && styles.selectedChipText,
+                ]}
+              >
+                {String(item)}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
+
+      <Pressable
+        style={styles.radiusButton}
+        onPress={() => setShowRadiusPicker(true)}
+      >
+        <Text style={styles.radiusButtonText}>{radius} km</Text>
+      </Pressable>
+      {showRadiusPicker && (
+  <View style={styles.radiusPicker}>
+    {radiusOptions.map((value) => (
+      <Pressable
+        key={value}
+        style={[
+          styles.radiusOption,
+          radius === value && styles.selectedRadiusOption,
+        ]}
+        onPress={() => {
+          setRadius(value);
+          setShowRadiusPicker(false);
+        }}
+      >
+        <Text
+          style={[
+            styles.radiusOptionText,
+            radius === value && styles.selectedRadiusOptionText,
+          ]}
+        >
+          {value} km
+        </Text>
+      </Pressable>
+    ))}
+  </View>
+)}
     </View>
   );
 }
@@ -124,9 +181,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    flex: 1, 
-    justifyContent: "center", 
-    alignItems: "center"
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   sliderContainer: {
     position: "absolute",
@@ -146,4 +203,80 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: "600",
   },
+  chipsWrapper: {
+    position: "absolute",
+    top: 50,
+    left: 0,
+    right: 0,
+  },
+
+  chipsContainer: {
+    paddingHorizontal: 10,
+    gap: 8,
+  },
+
+  chip: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+
+  selectedChip: {
+    backgroundColor: "#16a34a",
+    borderColor: "#16a34a",
+  },
+
+  chipText: {
+    color: "#000",
+    fontWeight: "600",
+  },
+
+  selectedChipText: {
+    color: "#fff",
+  },
+  radiusButton: {
+  position: "absolute",
+  bottom: 40,
+  right: 20,
+  backgroundColor: "#16a34a",
+  paddingHorizontal: 18,
+  paddingVertical: 12,
+  borderRadius: 25,
+  elevation: 5,
+},
+
+radiusButtonText: {
+  color: "#fff",
+  fontWeight: "700",
+},
+
+radiusPicker: {
+  position: "absolute",
+  bottom: 100,
+  right: 20,
+  backgroundColor: "#fff",
+  borderRadius: 16,
+  paddingVertical: 8,
+  elevation: 8,
+},
+
+radiusOption: {
+  paddingHorizontal: 20,
+  paddingVertical: 12,
+},
+
+selectedRadiusOption: {
+  backgroundColor: "#16a34a",
+},
+
+radiusOptionText: {
+  fontWeight: "600",
+},
+
+selectedRadiusOptionText: {
+  color: "#fff",
+},
 });
