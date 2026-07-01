@@ -1,33 +1,64 @@
 import MapView, { Marker } from "react-native-maps";
-import {
-  View,
-  StyleSheet,
-  Text,
-  ActivityIndicator,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import MapService, {
   MapPostsResponse,
   WasteCategory,
+  PostStatus,
+  MapCenterResponse,
 } from "../../../../services/map.service";
+import MapFilterBar from "../../../components/map/MapFilterBar";
+import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
+import PostPreviewCard from "../../../components/map/PostPreviewCard";
 
 export default function MapScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(
-    null,
-  );
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapPosts, setMapPosts] = useState<MapPostsResponse[]>([]);
+  const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
-  const [showRadiusPicker, setShowRadiusPicker] = useState(false);
-  const radiusOptions = [10, 20, 30, 40, 50, 75, 100];
+  const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
 
-  const categories: (string | WasteCategory)[] = [
-    ...Object.values(WasteCategory),
+  const categories: Array<WasteCategory> = [
+    ...Object.values(WasteCategory).filter(
+      (value): value is WasteCategory => typeof value != "number",
+    ),
   ];
+
+  const calculateDistanceKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  };
+
+  const getDistanceText = (item: MapPostsResponse) => {
+    if (!location) return "Distance unavailable";
+
+    const distanceKm = calculateDistanceKm(
+      location.coords.latitude,
+      location.coords.longitude,
+      item.latitude,
+      item.longitude,
+    );
+
+    return `${distanceKm.toFixed(1)} km away`;
+  };
+
   useEffect(() => {
     const getLocation = async () => {
       try {
@@ -81,7 +112,7 @@ export default function MapScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={{ marginTop: 10 }}>Loading location...</Text>
+        <Text style={styles.loadingText}>Loading location...</Text>
       </View>
     );
   }
@@ -96,82 +127,54 @@ export default function MapScreen() {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
+        onPress={() => setSelectedPost(null)} 
       >
         <Marker
           coordinate={{
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
           }}
-          pinColor="blue"
+          pinColor="purple"
         />
 
-        {mapPosts.map((e, index) => (
+        {mapPosts.map((post) => (
           <Marker
-            key={index}
+            key={String(post.id)}
             coordinate={{
-              latitude: e.latitude,
-              longitude: e.longitude,
+              latitude: post.latitude,
+              longitude: post.longitude,
             }}
+            pinColor={
+              post.status === PostStatus.OPEN
+                ? "blue"
+                : post.status === PostStatus.CLAIMED
+                  ? "orange"
+                  : "gray"
+            }
+            onPress={() => setSelectedPost(post)}
           />
         ))}
       </MapView>
-      <View style={styles.chipsWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContainer}
-        >
-          {categories.map((item) => (
-            <Pressable
-              key={String(item)}
-              onPress={() => setCategory(item)}
-              style={[styles.chip, category === item && styles.selectedChip]}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  category === item && styles.selectedChipText,
-                ]}
-              >
-                {String(item)}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
 
-      <Pressable
-        style={styles.radiusButton}
-        onPress={() => setShowRadiusPicker(true)}
-      >
-        <Text style={styles.radiusButtonText}>{radius} km</Text>
-      </Pressable>
-      {showRadiusPicker && (
-  <View style={styles.radiusPicker}>
-    {radiusOptions.map((value) => (
-      <Pressable
-        key={value}
-        style={[
-          styles.radiusOption,
-          radius === value && styles.selectedRadiusOption,
-        ]}
-        onPress={() => {
-          setRadius(value);
-          setShowRadiusPicker(false);
-        }}
-      >
-        <Text
-          style={[
-            styles.radiusOptionText,
-            radius === value && styles.selectedRadiusOptionText,
-          ]}
-        >
-          {value} km
-        </Text>
-      </Pressable>
-    ))}
-  </View>
-)}
+      <MapFilterBar
+        categories={categories}
+        selectedCategory={category}
+        onSelectCategory={setCategory}
+      />
+
+      {selectedPost ? (
+        <PostPreviewCard
+          post={selectedPost}
+          distanceText={getDistanceText(selectedPost)}
+          onViewDetails={(postId) => console.log("View details", postId)}
+        />
+      ) : null}
+
+      <MapRadiusSlider
+        radius={radius}
+        loadingPosts={loadingPosts}
+        onRadiusChange={setRadius}
+      />
     </View>
   );
 }
@@ -185,98 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  sliderContainer: {
-    position: "absolute",
-    bottom: 30,
-    left: 20,
-    right: 20,
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 12,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
+  loadingText: {
+    marginTop: 10,
   },
-  radiusText: {
-    textAlign: "center",
-    marginBottom: 8,
-    fontWeight: "600",
-  },
-  chipsWrapper: {
-    position: "absolute",
-    top: 50,
-    left: 0,
-    right: 0,
-  },
-
-  chipsContainer: {
-    paddingHorizontal: 10,
-    gap: 8,
-  },
-
-  chip: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-
-  selectedChip: {
-    backgroundColor: "#16a34a",
-    borderColor: "#16a34a",
-  },
-
-  chipText: {
-    color: "#000",
-    fontWeight: "600",
-  },
-
-  selectedChipText: {
-    color: "#fff",
-  },
-  radiusButton: {
-  position: "absolute",
-  bottom: 40,
-  right: 20,
-  backgroundColor: "#16a34a",
-  paddingHorizontal: 18,
-  paddingVertical: 12,
-  borderRadius: 25,
-  elevation: 5,
-},
-
-radiusButtonText: {
-  color: "#fff",
-  fontWeight: "700",
-},
-
-radiusPicker: {
-  position: "absolute",
-  bottom: 100,
-  right: 20,
-  backgroundColor: "#fff",
-  borderRadius: 16,
-  paddingVertical: 8,
-  elevation: 8,
-},
-
-radiusOption: {
-  paddingHorizontal: 20,
-  paddingVertical: 12,
-},
-
-selectedRadiusOption: {
-  backgroundColor: "#16a34a",
-},
-
-radiusOptionText: {
-  fontWeight: "600",
-},
-
-selectedRadiusOptionText: {
-  color: "#fff",
-},
 });
