@@ -20,6 +20,7 @@ export default function MapScreen() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
   const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
   const categories: Array<WasteCategory> = [
     ...Object.values(WasteCategory).filter(
@@ -97,6 +98,13 @@ export default function MapScreen() {
           ...(category !== "ALL" && { category }),
         });
         setMapPosts(nearByPosts);
+
+        const nearByCenters = await MapService.getMapCenters({
+          latitude,
+          longitude,
+          radius,
+        });
+        setMapCenters(nearByCenters);
       } catch (err) {
         console.log("getMapPosts failed:", err);
         setMapPosts([]);
@@ -152,6 +160,18 @@ export default function MapScreen() {
                   : "gray"
             }
             onPress={() => setSelectedPost(post)}
+          />
+        ))}
+
+        {mapCenters.map((center) => (
+          <Marker
+            key={String(center.id)}
+            coordinate={{
+              latitude: center.latitude,
+              longitude: center.longitude,
+            }}
+            pinColor="green"
+            onPress={() => setSelectedCenter(center)}
           />
         ))}
       </MapView>
