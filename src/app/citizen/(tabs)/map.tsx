@@ -11,6 +11,7 @@ import MapService, {
 import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
 import PostPreviewCard from "../../../components/map/PostPreviewCard";
+import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
 
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -20,6 +21,7 @@ export default function MapScreen() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
   const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
+  const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
   const categories: Array<WasteCategory> = [
     ...Object.values(WasteCategory).filter(
@@ -46,7 +48,7 @@ export default function MapScreen() {
     return earthRadiusKm * c;
   };
 
-  const getDistanceText = (item: MapPostsResponse) => {
+  const getDistanceText = (item: { latitude: number; longitude: number }) => {
     if (!location) return "Distance unavailable";
 
     const distanceKm = calculateDistanceKm(
@@ -97,6 +99,13 @@ export default function MapScreen() {
           ...(category !== "ALL" && { category }),
         });
         setMapPosts(nearByPosts);
+
+        const nearByCenters = await MapService.getMapCenters({
+          latitude,
+          longitude,
+          radius,
+        });
+        setMapCenters(nearByCenters);
       } catch (err) {
         console.log("getMapPosts failed:", err);
         setMapPosts([]);
@@ -127,7 +136,10 @@ export default function MapScreen() {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
-        onPress={() => setSelectedPost(null)} 
+        onPress={() => {
+          setSelectedPost(null);
+          setSelectedCenter(null);
+        }}
       >
         <Marker
           coordinate={{
@@ -151,7 +163,25 @@ export default function MapScreen() {
                   ? "orange"
                   : "gray"
             }
-            onPress={() => setSelectedPost(post)}
+            onPress={() => {
+              setSelectedPost(post);
+              setSelectedCenter(null);
+            }}
+          />
+        ))}
+
+        {mapCenters.map((center) => (
+          <Marker
+            key={String(center.id)}
+            coordinate={{
+              latitude: center.latitude,
+              longitude: center.longitude,
+            }}
+            pinColor="green"
+            onPress={() => {
+              setSelectedCenter(center);
+              setSelectedPost(null);
+            }}
           />
         ))}
       </MapView>
@@ -167,6 +197,14 @@ export default function MapScreen() {
           post={selectedPost}
           distanceText={getDistanceText(selectedPost)}
           onViewDetails={(postId) => console.log("View details", postId)}
+        />
+      ) : null}
+
+      {selectedCenter ? (
+        <CenterPreviewCard
+          center={selectedCenter}
+          distanceText={getDistanceText(selectedCenter)}
+          onViewDetails={(centerId) => console.log("View center", centerId)}
         />
       ) : null}
 

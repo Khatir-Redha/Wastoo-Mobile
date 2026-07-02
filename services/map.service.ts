@@ -39,10 +39,11 @@ export interface MapCenterResponse {
   id: number;
   latitude: number;
   longitude: number;
-  address: string,
+  address: string;
   name: string;
   opening_hours: string;
   accepted_categories: WasteCategory[];
+  phone?: string;
 }
 
 class MapService {
