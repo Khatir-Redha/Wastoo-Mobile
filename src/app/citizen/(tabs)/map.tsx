@@ -120,12 +120,14 @@ export default function MapScreen() {
   if (!location) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color="#006d37" />
         <Text style={styles.loadingText}>Loading location...</Text>
       </View>
     );
   }
 
+  console.log(mapCenters);
+  
   return (
     <View style={styles.container}>
       <MapView

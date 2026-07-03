@@ -12,7 +12,8 @@ export default function CenterPreviewCard({
   distanceText,
   onViewDetails,
 }: CenterPreviewCardProps) {
-  const phoneNumber = center.phone ??  "Phone number coming soon";
+  console.log(center)
+  const phoneNumber = center.owner.phone ??  "Phone number coming soon";
 
   return (
     <View style={styles.previewCard}>
