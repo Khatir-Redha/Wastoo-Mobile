@@ -126,6 +126,7 @@ export default function CreatePostScreen() {
         category,
         description,
         quantity: Number(weight),
+        price: isSelling && price ? Number(price) : 0,
         images: images.map((img) => img.url),
         latitude: selectedLocation?.latitude,
         longitude: selectedLocation?.longitude,

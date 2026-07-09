@@ -17,9 +17,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useAuth } from "../../../context/AuthProvider"; 
-import api from "../../../lib/api"; 
+import { useAuth } from "../../../context/AuthProvider";
 
 const { width } = Dimensions.get("window");
 
@@ -75,10 +73,38 @@ const AnimatedLeaf = ({ config }) => {
 };
 
 // ==========================================
+// GOOGLE SIGN-IN BUTTON COMPONENT
+// ==========================================
+const GoogleSignInButton = ({
+  onPress,
+  isLoading,
+}: {
+  onPress: () => void;
+  isLoading: boolean;
+}) => (
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={onPress}
+    disabled={isLoading}
+    className="w-full h-[52px] bg-white border border-[#ECECEC] rounded-2xl flex-row items-center justify-center gap-3"
+    style={isLoading ? { opacity: 0.6 } : {}}
+  >
+    {isLoading ? (
+      <ActivityIndicator size="small" color="#EA4335" />
+    ) : (
+      <FontAwesome5 name="google" size={18} color="#EA4335" />
+    )}
+    <Text className="text-[#1b1c1c] font-medium text-[14px]">
+      {isLoading ? "Connecting…" : "Continue with Google"}
+    </Text>
+  </TouchableOpacity>
+);
+
+// ==========================================
 // SIGN IN FORM COMPONENT
 // ==========================================
 const LoginForm = () => {
-  const { login , user } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -358,7 +384,23 @@ const RegisterForm = ({ onSuccess }) => {
 // MAIN SCREEN EXPORT
 // ==========================================
 export default function AuthScreen() {
+  const { googleLogin } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await googleLogin();
+    } catch (error: any) {
+      const message = error?.message || "Google sign-in failed. Please try again.";
+      if (!message.toLowerCase().includes("cancel")) {
+        Alert.alert("Google Sign-In Failed", message);
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   const leaves = useMemo(() => {
     return Array.from({ length: 15 }).map((_, i) => ({
@@ -424,10 +466,7 @@ export default function AuthScreen() {
           </View>
 
           <View className="flex flex-col gap-4 w-full">
-            <TouchableOpacity activeOpacity={0.7} className="w-full h-[52px] bg-white border border-[#ECECEC] rounded-2xl flex-row items-center justify-center gap-3">
-              <FontAwesome5 name="google" size={18} color="#EA4335" />
-              <Text className="text-[#1b1c1c] font-medium text-[14px]">Google</Text>
-            </TouchableOpacity>
+            <GoogleSignInButton onPress={handleGoogleLogin} isLoading={isGoogleLoading} />
             <TouchableOpacity activeOpacity={0.7} className="w-full h-[52px] bg-white border border-[#ECECEC] rounded-2xl flex-row items-center justify-center gap-3">
               <FontAwesome5 name="apple" size={20} color="#1b1c1c" />
               <Text className="text-[#1b1c1c] font-medium text-[14px]">Apple</Text>
