@@ -99,6 +99,7 @@ export default function MapScreen() {
           ...(category !== "ALL" && { category }),
         });
         setMapPosts(nearByPosts);
+        console.log(nearByPosts);
 
         const nearByCenters = await MapService.getMapCenters({
           latitude,

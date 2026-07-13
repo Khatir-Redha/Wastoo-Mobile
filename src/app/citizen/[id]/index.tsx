@@ -11,7 +11,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import PostService, { Post } from '../../../../services/post.service'; // Adjust path if needed
+import PostService, { Post } from '../../../../services/post.service'; 
+import { usePickups } from '../../../../hooks/usePickups';
+import { PickupStatus } from '../../../../services/pickup.service';
+import { Alert } from 'react-native';
+import { useAuth } from '../../../../context/AuthProvider';
 
 const { width: windowWidth } = Dimensions.get('window');
 
@@ -21,6 +25,7 @@ const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd722
 export default function WasteDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   
   const [post, setPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +60,10 @@ export default function WasteDetailScreen() {
     const index = event.nativeEvent.contentOffset.x / slideSize;
     const roundIndex = Math.round(index);
     setActiveIndex(roundIndex);
+  };
+
+  const handleRequestPickup = () => {
+    router.push(`/pickups/create?post_id=${id}`);
   };
 
   // --- Loading State ---
@@ -264,19 +273,35 @@ export default function WasteDetailScreen() {
 
       {/* --- Fixed Bottom Action Bar --- */}
       <View 
-        className="absolute bottom-0 w-full bg-white px-6 py-4 border-t border-[#F0F0F0]"
+        className="absolute bottom-0 w-full bg-white px-6 py-4 border-t border-[#F0F0F0] flex-row gap-3"
         style={{ paddingBottom: Platform.OS === 'ios' ? 34 : 16 }}
       >
-        <TouchableOpacity 
-          activeOpacity={0.8}
-          className="w-full bg-[#2ECC71] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
-          style={{ shadowColor: '#2ECC71', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}
-        >
-          <Text className="text-white text-[17px] font-bold mr-2">
-            Buy for {priceText}
-          </Text>
-          <Feather name="shopping-cart" size={20} color="white" />
-        </TouchableOpacity>
+        {user?.id !== post.author_id && (
+          <TouchableOpacity 
+            activeOpacity={0.8}
+            className="w-full bg-[#2ECC71] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
+            style={{ shadowColor: '#2ECC71', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}
+          >
+            <Text className="text-white text-[16px] font-bold mr-2">
+              Buy for {priceText}
+            </Text>
+            <Feather name="shopping-cart" size={20} color="white" />
+          </TouchableOpacity>
+        )}
+        
+        {user?.id === post.author_id && (
+          <TouchableOpacity 
+            activeOpacity={0.8}
+            onPress={handleRequestPickup}
+            className="w-full bg-[#1E5631] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
+            style={{ shadowColor: '#1E5631', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 4 }}
+          >
+            <Text className="text-white text-[16px] font-bold mr-2">
+              Request Pickup
+            </Text>
+            <MaterialCommunityIcons name="truck-delivery-outline" size={20} color="white" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
