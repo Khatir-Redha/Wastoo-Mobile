@@ -11,18 +11,19 @@ import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
 import PickupPreviewCard from "../../../components/map/PickupPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
+import CircularPin from "../../../components/map/CircularPin";
 import { useRouter } from "expo-router";
 
-const pickupPinColor = (status: string): string => {
+const pickupRingColor = (status: string): string => {
   switch (status) {
     case "PENDING":
-      return "blue";
+      return "#3B82F6";
     case "ASSIGNED":
-      return "orange";
+      return "#F59E0B";
     case "IN_TRANSIT":
-      return "purple";
+      return "#8B5CF6";
     default:
-      return "gray";
+      return "#9CA3AF";
   }
 };
 
@@ -159,13 +160,14 @@ export default function CollectorMapScreen() {
 
         {mapPickups.map((pickup) =>
           pickup.post?.latitude != null && pickup.post?.longitude != null ? (
-            <Marker
+            <CircularPin
               key={`pickup-${pickup.id}`}
               coordinate={{
                 latitude: pickup.post.latitude,
                 longitude: pickup.post.longitude,
               }}
-              pinColor={pickupPinColor(pickup.status)}
+              image={pickup.post.image}
+              ringColor={pickupRingColor(pickup.status)}
               onPress={() => {
                 setSelectedPickup(pickup);
                 setSelectedCenter(null);
@@ -175,13 +177,14 @@ export default function CollectorMapScreen() {
         )}
 
         {mapCenters.map((center) => (
-          <Marker
+          <CircularPin
             key={`center-${center.id}`}
             coordinate={{
               latitude: center.latitude,
               longitude: center.longitude,
             }}
-            pinColor="green"
+            ringColor="#16a34a"
+            iconName="recycle"
             onPress={() => {
               setSelectedCenter(center);
               setSelectedPickup(null);

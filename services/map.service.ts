@@ -33,6 +33,7 @@ export interface MapPostsResponse {
   category: WasteCategory;
   title: string;
   status?: PostStatus;
+  image?: string | null;
 }
 
 export interface MapCenterResponse {
@@ -56,6 +57,7 @@ export interface MapPickupResponse {
     latitude: number | null;
     longitude: number | null;
     title: string | null;
+    image?: string | null;
   };
 }
 

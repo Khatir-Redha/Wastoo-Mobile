@@ -2,6 +2,7 @@ import MapView, { Marker } from "react-native-maps";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import MapService, {
   MapPostsResponse,
   WasteCategory,
@@ -12,6 +13,7 @@ import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
 import PostPreviewCard from "../../../components/map/PostPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
+import CircularPin from "../../../components/map/CircularPin";
 
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -23,6 +25,7 @@ export default function MapScreen() {
   const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
   const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
+  const router = useRouter();
   const categories: Array<WasteCategory> = [
     ...Object.values(WasteCategory).filter(
       (value): value is WasteCategory => typeof value != "number",
@@ -153,18 +156,16 @@ export default function MapScreen() {
         />
 
         {mapPosts.map((post) => (
-          <Marker
+          <CircularPin
             key={String(post.id)}
-            coordinate={{
-              latitude: post.latitude,
-              longitude: post.longitude,
-            }}
-            pinColor={
+            coordinate={{ latitude: post.latitude, longitude: post.longitude }}
+            image={post.image}
+            ringColor={
               post.status === PostStatus.OPEN
-                ? "blue"
+                ? "#3B82F6"
                 : post.status === PostStatus.CLAIMED
-                  ? "orange"
-                  : "gray"
+                  ? "#F59E0B"
+                  : "#9CA3AF"
             }
             onPress={() => {
               setSelectedPost(post);
@@ -174,13 +175,11 @@ export default function MapScreen() {
         ))}
 
         {mapCenters.map((center) => (
-          <Marker
+          <CircularPin
             key={String(center.id)}
-            coordinate={{
-              latitude: center.latitude,
-              longitude: center.longitude,
-            }}
-            pinColor="green"
+            coordinate={{ latitude: center.latitude, longitude: center.longitude }}
+            ringColor="#16a34a"
+            iconName="recycle"
             onPress={() => {
               setSelectedCenter(center);
               setSelectedPost(null);
@@ -199,7 +198,7 @@ export default function MapScreen() {
         <PostPreviewCard
           post={selectedPost}
           distanceText={getDistanceText(selectedPost)}
-          onViewDetails={(postId) => console.log("View details", postId)}
+          onViewDetails={(postId) => router.push(`/citizen/${postId}`)}
         />
       ) : null}
 
