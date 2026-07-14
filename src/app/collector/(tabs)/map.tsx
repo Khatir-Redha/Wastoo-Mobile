@@ -2,35 +2,45 @@ import MapView, { Marker } from "react-native-maps";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
-import { useRouter } from "expo-router";
 import MapService, {
-  MapPostsResponse,
-  WasteCategory,
-  PostStatus,
   MapCenterResponse,
+  MapPickupResponse,
+  WasteCategory,
 } from "../../../../services/map.service";
 import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
-import PostPreviewCard from "../../../components/map/PostPreviewCard";
+import PickupPreviewCard from "../../../components/map/PickupPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
 import CircularPin from "../../../components/map/CircularPin";
+import { useRouter } from "expo-router";
 
-export default function MapScreen() {
+const pickupRingColor = (status: string): string => {
+  switch (status) {
+    case "PENDING":
+      return "#3B82F6";
+    case "ASSIGNED":
+      return "#F59E0B";
+    case "IN_TRANSIT":
+      return "#8B5CF6";
+    default:
+      return "#9CA3AF";
+  }
+};
+
+export default function CollectorMapScreen() {
+  const router = useRouter();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [mapPosts, setMapPosts] = useState<MapPostsResponse[]>([]);
+  const [mapPickups, setMapPickups] = useState<MapPickupResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
-  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
-  const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
+  const [selectedPickup, setSelectedPickup] = useState<MapPickupResponse | null>(null);
   const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
-  const router = useRouter();
-  const categories: Array<WasteCategory> = [
-    ...Object.values(WasteCategory).filter(
-      (value): value is WasteCategory => typeof value != "number",
-    ),
-  ];
+  const categories: Array<WasteCategory> = Object.values(WasteCategory).filter(
+    (value): value is WasteCategory => typeof value !== "number",
+  );
 
   const calculateDistanceKm = (
     lat1: number,
@@ -53,14 +63,12 @@ export default function MapScreen() {
 
   const getDistanceText = (item: { latitude: number; longitude: number }) => {
     if (!location) return "Distance unavailable";
-
     const distanceKm = calculateDistanceKm(
       location.coords.latitude,
       location.coords.longitude,
       item.latitude,
       item.longitude,
     );
-
     return `${distanceKm.toFixed(1)} km away`;
   };
 
@@ -72,66 +80,61 @@ export default function MapScreen() {
           console.log("Location permission denied");
           return;
         }
-
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-
         setLocation(currentLocation);
       } catch (err) {
-        console.log("location fetch failed, trying last known location:", err);
-        const lastKnown = await Location.getLastKnownPositionAsync({});
-        if (lastKnown) setLocation(lastKnown);
+        console.log("location fetch failed:", err);
       }
     };
-
     getLocation();
   }, []);
 
   useEffect(() => {
     if (!location) return;
 
-    const fetchPosts = async () => {
-      setLoadingPosts(true);
+    const fetchData = async () => {
+      setLoading(true);
       const { latitude, longitude } = location.coords;
       try {
-        const nearByPosts = await MapService.getMapPosts({
-          latitude,
-          longitude,
-          radius,
-          ...(category !== "ALL" && { category }),
-        });
-        setMapPosts(nearByPosts);
-        console.log(nearByPosts);
-
-        const nearByCenters = await MapService.getMapCenters({
-          latitude,
-          longitude,
-          radius,
-        });
-        setMapCenters(nearByCenters);
+        const [pickups, centers] = await Promise.all([
+          MapService.getMapPickups({
+            latitude,
+            longitude,
+            radius,
+            ...(category !== "ALL" && { category }),
+          }),
+          MapService.getMapCenters({
+            latitude,
+            longitude,
+            radius,
+            ...(category !== "ALL" && { category }),
+          }),
+        ]);
+        setMapPickups(pickups);
+        setMapCenters(centers);
       } catch (err) {
-        console.log("getMapPosts failed:", err);
-        setMapPosts([]);
+        console.log("collector map fetch failed:", err);
+        setMapPickups([]);
+        setMapCenters([]);
       } finally {
-        setLoadingPosts(false);
+        setLoading(false);
       }
     };
 
-    fetchPosts();
+    fetchData();
   }, [location, radius, category]);
 
   if (!location) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#006d37" />
+        <ActivityIndicator size="large" color="#1E5631" />
         <Text style={styles.loadingText}>Loading location...</Text>
       </View>
     );
   }
 
-  console.log(mapCenters);
-  
   return (
     <View style={styles.container}>
       <MapView
@@ -143,7 +146,7 @@ export default function MapScreen() {
           longitudeDelta: 0.05,
         }}
         onPress={() => {
-          setSelectedPost(null);
+          setSelectedPickup(null);
           setSelectedCenter(null);
         }}
       >
@@ -152,37 +155,39 @@ export default function MapScreen() {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
           }}
-          pinColor="purple"
+          pinColor="green"
         />
 
-        {mapPosts.map((post) => (
-          <CircularPin
-            key={String(post.id)}
-            coordinate={{ latitude: post.latitude, longitude: post.longitude }}
-            image={post.image}
-            ringColor={
-              post.status === PostStatus.OPEN
-                ? "#3B82F6"
-                : post.status === PostStatus.CLAIMED
-                  ? "#F59E0B"
-                  : "#9CA3AF"
-            }
-            onPress={() => {
-              setSelectedPost(post);
-              setSelectedCenter(null);
-            }}
-          />
-        ))}
+        {mapPickups.map((pickup) =>
+          pickup.post?.latitude != null && pickup.post?.longitude != null ? (
+            <CircularPin
+              key={`pickup-${pickup.id}`}
+              coordinate={{
+                latitude: pickup.post.latitude,
+                longitude: pickup.post.longitude,
+              }}
+              image={pickup.post.image}
+              ringColor={pickupRingColor(pickup.status)}
+              onPress={() => {
+                setSelectedPickup(pickup);
+                setSelectedCenter(null);
+              }}
+            />
+          ) : null,
+        )}
 
         {mapCenters.map((center) => (
           <CircularPin
-            key={String(center.id)}
-            coordinate={{ latitude: center.latitude, longitude: center.longitude }}
+            key={`center-${center.id}`}
+            coordinate={{
+              latitude: center.latitude,
+              longitude: center.longitude,
+            }}
             ringColor="#16a34a"
             iconName="recycle"
             onPress={() => {
               setSelectedCenter(center);
-              setSelectedPost(null);
+              setSelectedPickup(null);
             }}
           />
         ))}
@@ -194,11 +199,16 @@ export default function MapScreen() {
         onSelectCategory={setCategory}
       />
 
-      {selectedPost ? (
-        <PostPreviewCard
-          post={selectedPost}
-          distanceText={getDistanceText(selectedPost)}
-          onViewDetails={(postId) => router.push(`/citizen/${postId}`)}
+      {selectedPickup ? (
+        <PickupPreviewCard
+          pickup={selectedPickup}
+          distanceText={getDistanceText({
+            latitude: selectedPickup.post?.latitude ?? 0,
+            longitude: selectedPickup.post?.longitude ?? 0,
+          })}
+          onViewDetails={(pickupId) =>
+            router.push(`/collector/pickup/${pickupId}`)
+          }
         />
       ) : null}
 
@@ -206,13 +216,12 @@ export default function MapScreen() {
         <CenterPreviewCard
           center={selectedCenter}
           distanceText={getDistanceText(selectedCenter)}
-          onViewDetails={(centerId) => console.log("View center", centerId)}
         />
       ) : null}
 
       <MapRadiusSlider
         radius={radius}
-        loadingPosts={loadingPosts}
+        loadingPosts={loading}
         onRadiusChange={setRadius}
       />
     </View>
