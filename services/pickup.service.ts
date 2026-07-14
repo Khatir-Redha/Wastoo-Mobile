@@ -90,7 +90,7 @@ class PickupService {
    * Assign collector to a pickup (Accept Pickup)
    */
   static async assignCollector(id: number): Promise<Pickup> {
-    const response = await api.patch(`/pickup/${id}/accept`);
+    const response = await api.patch(`/pickup/accept/${id}`);
     return response.data;
   }
 
