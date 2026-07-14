@@ -46,6 +46,19 @@ export interface MapCenterResponse {
   phone?: string;
 }
 
+export interface MapPickupResponse {
+  id: number;
+  status: string;
+  collector_id: number | null;
+  owner_id: number;
+  post: {
+    id: number;
+    latitude: number | null;
+    longitude: number | null;
+    title: string | null;
+  };
+}
+
 class MapService {
   static async getMapPosts(query: getMapPostsDTO): Promise<[MapPostsResponse]> {
     const res = await api.get("/map/posts", { params: query });
@@ -56,6 +69,13 @@ class MapService {
     query: getMapPostsDTO,
   ): Promise<MapCenterResponse[]> {
     const res = await api.get("map/centers", { params: query });
+    return res.data;
+  }
+
+  static async getMapPickups(
+    query: getMapPostsDTO,
+  ): Promise<MapPickupResponse[]> {
+    const res = await api.get("map/pickups", { params: query });
     return res.data;
   }
 }

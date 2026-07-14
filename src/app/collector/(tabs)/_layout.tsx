@@ -33,6 +33,15 @@ export default function CollectorTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="map"
+        options={{
+          title: 'Map',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="map-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="my-pickups"
         options={{
           title: 'My Pickups',
