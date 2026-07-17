@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import api from "../lib/api";
+import { appEvents, APP_EVENTS } from "../lib/appEvents";
 import { openGoogleOAuth } from "../services/google-auth.service";
 
 export interface User {
@@ -22,6 +23,8 @@ export type AuthContextType = {
   login: (email: string, password: string) => Promise<void>;
   googleLogin: () => Promise<void>;
   logout: () => Promise<void>;
+  sessionExpired: boolean;
+  dismissSessionExpired: () => void;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -29,9 +32,24 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     hydrateAuthSession();
+  }, []);
+
+  // Listen for the global "session expired" event fired by the API interceptor
+  // when token refresh fails. Clear auth and surface a friendly UI.
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setUser(null);
+      setSessionExpired(true);
+    };
+
+    appEvents.on(APP_EVENTS.SESSION_EXPIRED, onSessionExpired);
+    return () => {
+      appEvents.off(APP_EVENTS.SESSION_EXPIRED, onSessionExpired);
+    };
   }, []);
 
   const fetchProfile = async (token: string) => {
@@ -119,8 +137,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await cleanupAuth();
   };
 
+  const dismissSessionExpired = () => {
+    setSessionExpired(false);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, googleLogin, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        googleLogin,
+        logout,
+        sessionExpired,
+        dismissSessionExpired,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

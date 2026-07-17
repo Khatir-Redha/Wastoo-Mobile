@@ -1,8 +1,9 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import { appEvents, APP_EVENTS } from "./appEvents";
 
 // Use an environment variable for production, fallback to your local IP for dev
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.9:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.9:5000";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -16,7 +17,7 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     try {
-      const accessToken = await SecureStore.getItemAsync("accessToken");
+      const accessToken = await SecureStore.getItemAsync("access_token");
       
       if (accessToken) {
         // Use .set() for modern Axios TypeScript compatibility
@@ -51,7 +52,7 @@ api.interceptors.response.use(
 
       try {
         // 1. Get the refresh token from secure storage
-        const refreshToken = await SecureStore.getItemAsync("refreshToken");
+        const refreshToken = await SecureStore.getItemAsync("refresh_token");
         
         if (!refreshToken) {
           throw new Error("No refresh token available in SecureStore");
@@ -75,15 +76,19 @@ api.interceptors.response.use(
         return api(originalRequest);
 
       } catch (refreshError: any) {
-        // ---> DEBUGGING CATCH BLOCK <---
-        // This will tell you EXACTLY why your backend is rejecting the refresh request
-        console.error("🚨 REFRESH TOKEN FAILED! 🚨");
-        console.error("Backend Error Response:", refreshError.response?.data || refreshError.message);
-        
-        // Clear the bad tokens because they are no longer valid
-        await SecureStore.deleteItemAsync("accessToken");
-        await SecureStore.deleteItemAsync("refreshToken");
-        
+        // Refresh failed: the session is no longer valid. Clear the bad tokens
+        // and notify the app (via a global event) so it can show a "Session expired" UI.
+        console.warn("Session expired: token refresh failed.", refreshError?.response?.data || refreshError?.message);
+        await SecureStore.deleteItemAsync("access_token");
+        await SecureStore.deleteItemAsync("refresh_token");
+        if (api.defaults.headers.common["Authorization"]) {
+          delete api.defaults.headers.common["Authorization"];
+        }
+
+        // Notify the app (via the shared event bus) so it can show a
+        // "Session expired" UI instead of bubbling the error to Expo.
+        appEvents.emit(APP_EVENTS.SESSION_EXPIRED);
+
         return Promise.reject(refreshError);
       }
     }
