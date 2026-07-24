@@ -15,6 +15,7 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  kyc_status?: string | null;
 }
 
 export type AuthContextType = {

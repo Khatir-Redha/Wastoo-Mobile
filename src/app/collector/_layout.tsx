@@ -18,6 +18,9 @@ export default function CollectorRootLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="pickup/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="pickup/confirm" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="kyc/become-collector" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="kyc/upload-documents" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="kyc/status" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
