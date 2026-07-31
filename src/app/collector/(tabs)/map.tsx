@@ -13,6 +13,7 @@ import PickupPreviewCard from "../../../components/map/PickupPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
 import CircularPin from "../../../components/map/CircularPin";
 import { useRouter } from "expo-router";
+import { calculateDistance } from "haversine-toolkit";
 
 const pickupRingColor = (status: string): string => {
   switch (status) {
@@ -42,35 +43,22 @@ export default function CollectorMapScreen() {
     (value): value is WasteCategory => typeof value !== "number",
   );
 
-  const calculateDistanceKm = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ) => {
-    const toRad = (value: number) => (value * Math.PI) / 180;
-    const earthRadiusKm = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return earthRadiusKm * c;
-  };
+const getDistanceText = (item: { latitude: number; longitude: number }) => {
+  if (!location) return "Distance unavailable";
 
-  const getDistanceText = (item: { latitude: number; longitude: number }) => {
-    if (!location) return "Distance unavailable";
-    const distanceKm = calculateDistanceKm(
-      location.coords.latitude,
-      location.coords.longitude,
-      item.latitude,
-      item.longitude,
-    );
-    return `${distanceKm.toFixed(1)} km away`;
-  };
+  const distanceKm = calculateDistance(
+    {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    },
+    {
+      latitude: item.latitude,
+      longitude: item.longitude,
+    }
+  );
+
+  return `${distanceKm.toFixed(1)} km away`;
+};
 
   useEffect(() => {
     const getLocation = async () => {

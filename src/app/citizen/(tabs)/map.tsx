@@ -14,6 +14,7 @@ import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
 import PostPreviewCard from "../../../components/map/PostPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
 import CircularPin from "../../../components/map/CircularPin";
+import { calculateDistance } from "haversine-toolkit"
 
 export default function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
@@ -32,37 +33,22 @@ export default function MapScreen() {
     ),
   ];
 
-  const calculateDistanceKm = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ) => {
-    const toRad = (value: number) => (value * Math.PI) / 180;
-    const earthRadiusKm = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return earthRadiusKm * c;
-  };
+const getDistanceText = (item: { latitude: number; longitude: number }) => {
+  if (!location) return "Distance unavailable";
 
-  const getDistanceText = (item: { latitude: number; longitude: number }) => {
-    if (!location) return "Distance unavailable";
+  const distanceKm = calculateDistance(
+    {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    },
+    {
+      latitude: item.latitude,
+      longitude: item.longitude,
+    }
+  );
 
-    const distanceKm = calculateDistanceKm(
-      location.coords.latitude,
-      location.coords.longitude,
-      item.latitude,
-      item.longitude,
-    );
-
-    return `${distanceKm.toFixed(1)} km away`;
-  };
+  return `${distanceKm.toFixed(1)} km away`;
+};
 
   useEffect(() => {
     const getLocation = async () => {
