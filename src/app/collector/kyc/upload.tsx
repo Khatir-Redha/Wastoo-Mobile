@@ -3,10 +3,11 @@ import {
   View, Text, TouchableOpacity, ActivityIndicator,
   Alert, SafeAreaView, ScrollView, Platform
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import KycService from '../../../../services/kyc.service';
+import api from '../../../../lib/api';
 
 type DocState = {
   status: 'idle' | 'uploading' | 'success' | 'error';
@@ -18,20 +19,16 @@ type DocState = {
 
 export default function UploadDocumentsScreen() {
   const router = useRouter();
-  const { name, phone, mode } = useLocalSearchParams<{ name: string; phone: string; mode?: string }>();
 
-  const [nationalId, setNationalId] = useState<DocState>({ status: 'idle' });
-  const [selfie, setSelfie] = useState<DocState>({ status: 'idle' });
-  const [supporting, setSupporting] = useState<DocState>({ status: 'idle' });
+  // According to backend, we only upload ONE document: ID or PASSPORT.
+  const [document, setDocument] = useState<DocState>({ status: 'idle' });
   const [submitting, setSubmitting] = useState(false);
 
-  const handlePickDocument = async (
-    docType: 'NATIONAL_ID' | 'SELFIE' | 'SUPPORTING',
-    setState: React.Dispatch<React.SetStateAction<DocState>>
-  ) => {
+  const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/jpeg', 'image/png', 'application/pdf'],
+        // Backend /cloudinary/upload only accepts JPG/PNG, no PDF
+        type: ['image/jpeg', 'image/png'],
         copyToCacheDirectory: true,
       });
 
@@ -47,8 +44,8 @@ export default function UploadDocumentsScreen() {
         return;
       }
 
-      const mimeType = file.mimeType || 'application/octet-stream';
-      await uploadDocument(file.uri, file.name, mimeType, setState);
+      const mimeType = file.mimeType || 'image/jpeg';
+      await uploadDocument(file.uri, file.name, mimeType);
     } catch (err) {
       console.error('Error picking document', err);
       Alert.alert('Error', 'Failed to select document.');
@@ -58,76 +55,62 @@ export default function UploadDocumentsScreen() {
   const uploadDocument = async (
     uri: string,
     fileName: string,
-    mimeType: string,
-    setState: React.Dispatch<React.SetStateAction<DocState>>
+    mimeType: string
   ) => {
-    setState({ status: 'uploading', fileName, fileUri: uri, mimeType });
+    setDocument({ status: 'uploading', fileName, fileUri: uri, mimeType });
 
     try {
-      // 1. Get signed URL
-      const { signedUrl, documentUrl } = await KycService.getSignedUrl(fileName, mimeType);
+      const formData = new FormData();
+      formData.append('file', {
+        uri,
+        name: fileName,
+        type: mimeType,
+      } as any);
 
-      // 2. Fetch file as blob and upload to signed URL
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      const uploadRes = await fetch(signedUrl, {
-        method: 'PUT',
+      const uploadRes = await api.post('/cloudinary/upload', formData, {
         headers: {
-          'Content-Type': mimeType,
+          'Content-Type': 'multipart/form-data',
         },
-        body: blob,
       });
 
-      if (!uploadRes.ok) {
-        throw new Error('Upload to storage failed');
-      }
+      const documentUrl = uploadRes.data.url;
 
-      setState(prev => ({ ...prev, status: 'success', documentUrl }));
+      setDocument(prev => ({ ...prev, status: 'success', documentUrl }));
     } catch (err) {
       console.error('Upload failed', err);
-      setState(prev => ({ ...prev, status: 'error' }));
+      setDocument(prev => ({ ...prev, status: 'error' }));
       Alert.alert('Upload Failed', `Failed to upload ${fileName}. Please try again.`);
     }
   };
 
-  const handleRetryUpload = (state: DocState, setState: React.Dispatch<React.SetStateAction<DocState>>) => {
-    if (state.fileUri && state.fileName && state.mimeType) {
-      uploadDocument(state.fileUri, state.fileName, state.mimeType, setState);
+  const handleRetryUpload = () => {
+    if (document.fileUri && document.fileName && document.mimeType) {
+      uploadDocument(document.fileUri, document.fileName, document.mimeType);
     }
   };
 
   const handleSubmit = async () => {
-    if (nationalId.status !== 'success' || selfie.status !== 'success') {
-      Alert.alert('Missing Documents', 'Please upload both your National ID and a Selfie with ID.');
+    if (document.status !== 'success' || !document.documentUrl) {
+      Alert.alert('Missing Document', 'Please upload your National ID or Passport.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const documents = [
-        { document_type: 'NATIONAL_ID', document_url: nationalId.documentUrl! },
-        { document_type: 'SELFIE', document_url: selfie.documentUrl! },
-      ];
+      const payload = {
+        document_type: 'ID',
+        document_url: document.documentUrl,
+      };
 
-      if (supporting.status === 'success' && supporting.documentUrl) {
-        documents.push({ document_type: 'SUPPORTING', document_url: supporting.documentUrl });
-      }
-
-      const payload = { name, phone, documents };
-
-      if (mode === 'resubmit') {
-        await KycService.resubmitKyc(payload);
-      } else {
-        await KycService.submitKyc(payload);
-      }
+      await KycService.submitApplication(payload);
 
       // Navigate to status screen on success
       router.replace('/collector/kyc/status' as any);
     } catch (err: any) {
       const status = err?.response?.status;
-      if (status === 409) {
-        Alert.alert('Duplicate Request', 'You already have a pending KYC application.');
+      if (status === 409 || status === 404) {
+        // Handle findFirstOrThrow bug or genuine conflict
+        Alert.alert('Request Error', 'There was an issue submitting your request. You may already have an active application.');
       } else {
         Alert.alert('Error', err?.response?.data?.message || 'Failed to submit application.');
       }
@@ -138,53 +121,49 @@ export default function UploadDocumentsScreen() {
 
   const renderDocSlot = (
     title: string,
-    description: string,
-    required: boolean,
-    docType: 'NATIONAL_ID' | 'SELFIE' | 'SUPPORTING',
-    state: DocState,
-    setState: React.Dispatch<React.SetStateAction<DocState>>
+    description: string
   ) => {
     return (
       <View className="mb-6 bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl p-4">
         <View className="flex-row items-start justify-between mb-3">
           <View className="flex-1 pr-4">
             <Text className="text-[16px] font-bold text-[#1b1c1c]">
-              {title} {required && <Text className="text-red-500">*</Text>}
+              {title} <Text className="text-red-500">*</Text>
             </Text>
             <Text className="text-[13px] text-[#6D7A6E] mt-1">{description}</Text>
           </View>
           
           {/* Status Icon */}
           <View className="w-10 h-10 items-center justify-center">
-            {state.status === 'success' && <Feather name="check-circle" size={24} color="#2ECC71" />}
-            {state.status === 'error' && <Feather name="alert-circle" size={24} color="#EF4444" />}
-            {state.status === 'idle' && <Feather name="upload-cloud" size={24} color="#8A8F87" />}
+            {document.status === 'success' && <Feather name="check-circle" size={24} color="#2ECC71" />}
+            {document.status === 'error' && <Feather name="alert-circle" size={24} color="#EF4444" />}
+            {document.status === 'idle' && <Feather name="upload-cloud" size={24} color="#8A8F87" />}
           </View>
         </View>
 
-        {state.status === 'uploading' ? (
+        {document.status === 'uploading' ? (
           <View className="flex-row items-center bg-white p-3 rounded-xl border border-[#ECECEC]">
             <ActivityIndicator size="small" color="#2ECC71" />
             <Text className="ml-3 text-[14px] text-[#6D7A6E] flex-1" numberOfLines={1}>
-              Uploading {state.fileName}...
+              Uploading {document.fileName}...
             </Text>
           </View>
         ) : (
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => state.status === 'error' ? handleRetryUpload(state, setState) : handlePickDocument(docType, setState)}
+            onPress={() => document.status === 'error' ? handleRetryUpload() : handlePickDocument()}
             className={`flex-row items-center justify-center p-3 rounded-xl border border-dashed ${
-              state.status === 'error' ? 'border-red-400 bg-red-50' 
-              : state.status === 'success' ? 'border-[#2ECC71] bg-[#E8F8EE]'
+              document.status === 'error' ? 'border-red-400 bg-red-50' 
+              : document.status === 'success' ? 'border-[#2ECC71] bg-[#E8F8EE]'
               : 'border-[#B0B0B0] bg-white'
             }`}
           >
-            {state.status === 'success' ? (
+            {document.status === 'success' ? (
               <>
                 <Feather name="refresh-cw" size={16} color="#1E5631" />
                 <Text className="text-[#1E5631] font-semibold text-[14px] ml-2">Replace File</Text>
               </>
-            ) : state.status === 'error' ? (
+            ) : document.status === 'error' ? (
               <>
                 <Feather name="refresh-ccw" size={16} color="#EF4444" />
                 <Text className="text-[#EF4444] font-semibold text-[14px] ml-2">Retry Upload</Text>
@@ -201,7 +180,7 @@ export default function UploadDocumentsScreen() {
     );
   };
 
-  const isSubmitDisabled = submitting || nationalId.status !== 'success' || selfie.status !== 'success';
+  const isSubmitDisabled = submitting || document.status !== 'success';
 
   return (
     <SafeAreaView className="flex-1 bg-white" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
@@ -220,35 +199,13 @@ export default function UploadDocumentsScreen() {
       >
         <View className="mb-6">
           <Text className="text-[14px] text-[#6D7A6E] leading-5">
-            Please upload clear, legible copies of your documents. Accepted formats: JPG, PNG, PDF. Max 10MB per file.
+            Please upload a clear, legible copy of your document. Accepted formats: JPG, PNG. Max 10MB.
           </Text>
         </View>
 
         {renderDocSlot(
-          'National ID',
-          'Front of your valid government-issued ID card or Passport.',
-          true,
-          'NATIONAL_ID',
-          nationalId,
-          setNationalId
-        )}
-
-        {renderDocSlot(
-          'Selfie with ID',
-          'A clear photo of your face holding your National ID next to it.',
-          true,
-          'SELFIE',
-          selfie,
-          setSelfie
-        )}
-
-        {renderDocSlot(
-          'Supporting Document',
-          'Utility bill, bank statement, or other proof of address (Optional).',
-          false,
-          'SUPPORTING',
-          supporting,
-          setSupporting
+          'National ID or Passport',
+          'Front of your valid government-issued ID card or Passport.'
         )}
 
         {/* Security Note */}

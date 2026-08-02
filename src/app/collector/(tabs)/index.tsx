@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ActivityIndicator,
-  TextInput, ScrollView, RefreshControl, SafeAreaView, Platform
+  TextInput, ScrollView, RefreshControl, SafeAreaView, Platform, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import PickupService, { Pickup } from '../../../../services/pickup.service';
+import { useAuth } from '../../../../context/AuthProvider';
 
 const CATEGORIES = ['All', 'PLASTIC', 'GLASS', 'PAPER', 'METAL', 'ORGANIC', 'TEXTILE', 'MIXED'];
 
@@ -56,7 +57,22 @@ export default function AvailablePickupsScreen() {
 
   const onRefresh = () => { setRefreshing(true); fetchPickups(true); };
 
+  const { user } = useAuth();
+  const isVerified = user?.status === 'ACTIVE';
+
   const handleAccept = async (pickup: Pickup) => {
+    if (!isVerified) {
+      Alert.alert(
+        'Verification Required',
+        'You must complete your identity verification to accept pickups.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Verify Now', onPress: () => router.push('/collector/kyc' as any) }
+        ]
+      );
+      return;
+    }
+
     setAcceptingId(pickup.id);
     try {
       await PickupService.assignCollector(pickup.id);

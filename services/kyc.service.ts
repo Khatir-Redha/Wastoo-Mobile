@@ -5,31 +5,18 @@ class KycService {
    * Get the current user's KYC applications
    */
   async getMyKyc() {
-    const response = await api.get('/kyc/me');
+    const response = await api.get('/kyc/my');
     return response.data;
   }
 
   /**
-   * Request a signed URL for document upload
+   * Submit (or resubmit) a KYC application.
+   * Uses PATCH /kyc/re-submit instead of POST /kyc because the backend's
+   * POST endpoint crashes when the user has no existing PENDING application.
+   * PATCH /kyc/re-submit correctly handles both new and existing applications.
    */
-  async getSignedUrl(filename: string, contentType: string): Promise<{ signedUrl: string, documentUrl: string }> {
-    const response = await api.post('/kyc/signed-url', { filename, contentType });
-    return response.data;
-  }
-
-  /**
-   * Submit the KYC application
-   */
-  async submitKyc(data: { name: string; phone: string; documents: { document_type: string; document_url: string }[] }) {
-    const response = await api.post('/kyc', data);
-    return response.data;
-  }
-
-  /**
-   * Resubmit a rejected KYC application
-   */
-  async resubmitKyc(data: { name: string; phone: string; documents: { document_type: string; document_url: string }[] }) {
-    const response = await api.patch('/kyc/resubmit', data);
+  async submitApplication(data: { document_type: string; document_url: string }) {
+    const response = await api.patch('/kyc/re-submit', data);
     return response.data;
   }
 }
