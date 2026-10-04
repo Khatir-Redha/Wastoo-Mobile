@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { appEvents, APP_EVENTS } from "./appEvents";
 
 // Use an environment variable for production, fallback to your local IP for dev
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:5000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.4:5000";
 
 const api = axios.create({
   baseURL: API_URL,
