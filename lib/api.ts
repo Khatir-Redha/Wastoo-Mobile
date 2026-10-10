@@ -2,8 +2,25 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { appEvents, APP_EVENTS } from "./appEvents";
 
-// Use an environment variable for production, fallback to your local IP for dev
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.4:5000";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+
+// Dynamically get the IP address of the machine running the Expo bundler
+const hostUri = Constants.expoConfig?.hostUri;
+const localIP = hostUri ? hostUri.split(":")[0] : "192.168.88.116";
+
+// Determine the API URL based on the environment
+let resolvedApiUrl = `http://${localIP}:5000`;
+if (Platform.OS === 'android' && !Constants.isDevice) {
+  // We are on an Android Emulator. Using the physical IP often gets blocked by Windows Firewall.
+  // 10.0.2.2 bypasses the firewall and securely routes to localhost.
+  resolvedApiUrl = "http://10.0.2.2:5000";
+} else if (Platform.OS === 'ios' && !Constants.isDevice) {
+  resolvedApiUrl = "http://127.0.0.1:5000";
+}
+
+// Use an environment variable for production, fallback to dynamic local IP for dev
+const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
 
 const api = axios.create({
   baseURL: API_URL,

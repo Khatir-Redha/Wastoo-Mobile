@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, Platform, StyleSheet, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { usePickups } from '../../../hooks/usePickups';
 import { PickupStatus } from '../../../services/pickup.service';
 import { useAuth } from '../../../context/AuthProvider';
+import { Button, Card } from '../../components/ui';
+import { theme } from '../../theme/tokens';
 
 export default function SchedulePickupScreen() {
   const router = useRouter();
@@ -15,7 +17,7 @@ export default function SchedulePickupScreen() {
 
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
+
   const [time, setTime] = useState(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -30,11 +32,10 @@ export default function SchedulePickupScreen() {
   };
 
   const handleConfirm = async () => {
-    // Generate end time (+2 hours)
     const startTimeString = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const endTimeObj = new Date(time.getTime() + 2 * 60 * 60 * 1000);
     const endTimeString = endTimeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
+
     const scheduledDateString = date.toISOString().split('T')[0];
 
     try {
@@ -52,7 +53,7 @@ export default function SchedulePickupScreen() {
         start_time: startTimeString,
         end_time: endTimeString
       });
-      
+
       Alert.alert(
         'Success',
         'Pickup Request Submitted Successfully',
@@ -67,31 +68,36 @@ export default function SchedulePickupScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white">
+    <View style={styles.container}>
       {/* Header */}
-      <View className="px-5 pt-12 pb-4 bg-white border-b border-[#ECECEC] flex-row items-center">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-          <Feather name="arrow-left" size={24} color="#1b1c1c" />
-        </TouchableOpacity>
-        <Text className="text-[20px] font-bold text-[#1b1c1c] ml-2">Schedule Pickup</Text>
+      <View style={styles.header}>
+        <Button
+          title=""
+          variant="ghost"
+          onPress={() => router.back()}
+          icon={<Feather name="arrow-left" size={24} color={theme.colors.text.primary} />}
+          style={styles.backButton}
+        />
+        <Text style={styles.headerTitle}>Schedule Pickup</Text>
       </View>
 
-      <View className="flex-1 p-6">
-        <Text className="text-[16px] text-[#6D7A6E] mb-8">
+      <View style={styles.content}>
+        <Text style={styles.description}>
           Select a convenient date and time for the collector to pick up the waste.
         </Text>
 
         {/* Date Selection */}
-        <Text className="text-[18px] font-bold text-[#1b1c1c] mb-4">Date</Text>
-        <TouchableOpacity 
+        <Text style={styles.sectionTitle}>Date</Text>
+        <Button
+          title={date.toLocaleDateString()}
+          variant="secondary"
+          size="lg"
           onPress={() => setShowDatePicker(true)}
-          className="flex-row items-center bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl px-4 h-[56px] mb-6"
-        >
-          <Feather name="calendar" size={20} color="#2ECC71" />
-          <Text className="text-[#1b1c1c] text-[16px] ml-3 flex-1">
-            {date.toLocaleDateString()}
-          </Text>
-        </TouchableOpacity>
+          icon={<Feather name="calendar" size={20} color={theme.colors.green[600]} />}
+          iconPosition="left"
+          hapticFeedback={false}
+          style={styles.pickerButton}
+        />
 
         {showDatePicker && (
           <DateTimePicker
@@ -105,16 +111,17 @@ export default function SchedulePickupScreen() {
         )}
 
         {/* Time Selection */}
-        <Text className="text-[18px] font-bold text-[#1b1c1c] mb-4">Start Time</Text>
-        <TouchableOpacity 
+        <Text style={styles.sectionTitle}>Start Time</Text>
+        <Button
+          title={time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          variant="secondary"
+          size="lg"
           onPress={() => setShowTimePicker(true)}
-          className="flex-row items-center bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl px-4 h-[56px] mb-8"
-        >
-          <Feather name="clock" size={20} color="#2ECC71" />
-          <Text className="text-[#1b1c1c] text-[16px] ml-3 flex-1">
-            {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </TouchableOpacity>
+          icon={<Feather name="clock" size={20} color={theme.colors.green[600]} />}
+          iconPosition="left"
+          hapticFeedback={false}
+          style={styles.pickerButton}
+        />
 
         {showTimePicker && (
           <DateTimePicker
@@ -124,31 +131,103 @@ export default function SchedulePickupScreen() {
             onChange={onChangeTime}
           />
         )}
-        
-        <View className="bg-[#E8F8EE] p-4 rounded-[16px] flex-row items-start">
-          <Feather name="info" size={20} color="#1E5631" className="mt-1" />
-          <Text className="text-[#1E5631] text-[14px] flex-1 ml-3 leading-5">
-            The collection window will be automatically set to 2 hours from your start time.
-          </Text>
-        </View>
 
+        {/* Info Card */}
+        <Card variant="flat" padding="md" style={styles.infoCard}>
+          <View style={styles.infoCardContent}>
+            <Feather name="info" size={20} color={theme.colors.green[700]} style={styles.infoIcon} />
+            <Text style={styles.infoText}>
+              The collection window will be automatically set to 2 hours from your start time.
+            </Text>
+          </View>
+        </Card>
       </View>
 
       {/* Footer */}
-      <View className="px-6 py-4 border-t border-[#F0F0F0] bg-white">
-        <TouchableOpacity 
-          activeOpacity={0.8}
+      <View style={styles.footer}>
+        <Button
+          title="Confirm Pickup Request"
+          variant="primary"
+          size="lg"
           onPress={handleConfirm}
+          loading={loading}
           disabled={loading}
-          className={`w-full ${loading ? 'bg-[#7fc796]' : 'bg-[#2ECC71]'} h-[56px] rounded-full flex-row items-center justify-center shadow-sm`}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-white text-[17px] font-bold">Confirm Pickup Request</Text>
-          )}
-        </TouchableOpacity>
+        />
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+  header: {
+    paddingHorizontal: theme.spacing.lg + 4,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.canvas.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.default,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+    marginRight: theme.spacing.sm,
+  },
+  headerTitle: {
+    fontSize: theme.typography.fontSize['2xl'].size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+  },
+  content: {
+    flex: 1,
+    padding: theme.spacing.xl,
+  },
+  description: {
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing['2xl'],
+    lineHeight: 24,
+  },
+  sectionTitle: {
+    fontSize: theme.typography.fontSize.xl.size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
+  },
+  pickerButton: {
+    marginBottom: theme.spacing.xl,
+    justifyContent: 'flex-start',
+  },
+  infoCard: {
+    marginTop: theme.spacing.sm,
+  },
+  infoCardContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  infoIcon: {
+    marginTop: 2,
+  },
+  infoText: {
+    flex: 1,
+    marginLeft: theme.spacing.md,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.green[700],
+    lineHeight: 20,
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+});

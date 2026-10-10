@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,20 +9,24 @@ import {
   Animated,
   Easing,
   Dimensions,
-  ActivityIndicator,
   Alert,
+  StyleSheet,
+  TouchableOpacity,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { useAuth } from "../../../context/AuthProvider";
+import { Button, Input } from "../../components/ui";
+import { theme } from "../../theme/tokens";
+import api from "../../../lib/api";
 
 const { width } = Dimensions.get("window");
 
 // ==========================================
-// BACKGROUND LEAF ANIMATION
+// BACKGROUND LEAF ANIMATION (kept as-is for visual flair)
 // ==========================================
-const AnimatedLeaf = ({ config }) => {
+const AnimatedLeaf = ({ config }: { config: any }) => {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -73,34 +75,6 @@ const AnimatedLeaf = ({ config }) => {
 };
 
 // ==========================================
-// GOOGLE SIGN-IN BUTTON COMPONENT
-// ==========================================
-const GoogleSignInButton = ({
-  onPress,
-  isLoading,
-}: {
-  onPress: () => void;
-  isLoading: boolean;
-}) => (
-  <TouchableOpacity
-    activeOpacity={0.7}
-    onPress={onPress}
-    disabled={isLoading}
-    className="w-full h-[52px] bg-white border border-[#ECECEC] rounded-2xl flex-row items-center justify-center gap-3"
-    style={isLoading ? { opacity: 0.6 } : {}}
-  >
-    {isLoading ? (
-      <ActivityIndicator size="small" color="#EA4335" />
-    ) : (
-      <FontAwesome5 name="google" size={18} color="#EA4335" />
-    )}
-    <Text className="text-[#1b1c1c] font-medium text-[14px]">
-      {isLoading ? "Connecting…" : "Continue with Google"}
-    </Text>
-  </TouchableOpacity>
-);
-
-// ==========================================
 // SIGN IN FORM COMPONENT
 // ==========================================
 const LoginForm = () => {
@@ -120,7 +94,6 @@ const LoginForm = () => {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      // No manual routing needed! Your root layout detects the session update and redirects automatically.
     } catch (error: any) {
       console.error(error);
       const message = error.response?.data?.message || "Invalid credentials. Please try again.";
@@ -131,64 +104,59 @@ const LoginForm = () => {
   };
 
   return (
-    <View className="flex flex-col gap-5 w-full">
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Email</Text>
-        <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
-          <MaterialIcons name="mail-outline" size={20} color="#6d7a6e" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Enter your email"
-            placeholderTextColor="#bccabc"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-        </View>
-      </View>
+    <View style={styles.formContainer}>
+      <Input
+        label="Email"
+        icon="mail"
+        placeholder="Enter your email"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+        containerStyle={styles.inputContainer}
+      />
 
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Password</Text>
-        <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
-          <MaterialIcons name="lock-outline" size={20} color="#6d7a6e" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Enter your password"
-            placeholderTextColor="#bccabc"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="p-1">
-            <MaterialIcons name={showPassword ? "visibility" : "visibility-off"} size={20} color="#6d7a6e" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Input
+        label="Password"
+        icon="lock"
+        placeholder="Enter your password"
+        secureTextEntry={!showPassword}
+        value={password}
+        onChangeText={setPassword}
+        rightIcon={showPassword ? "eye" : "eye-off"}
+        onRightIconPress={() => setShowPassword(!showPassword)}
+        containerStyle={styles.inputContainer}
+      />
 
-      <View className="flex-row items-center justify-between w-full mt-1 mb-2">
-        <TouchableOpacity className="flex-row items-center gap-2" onPress={() => setRememberMe(!rememberMe)} activeOpacity={0.7}>
-          <View className={`w-5 h-5 rounded border items-center justify-center ${rememberMe ? "bg-[#27AE60] border-[#27AE60]" : "bg-[#F9F9F9] border-[#ECECEC]"}`}>
-            {rememberMe && <MaterialIcons name="check" size={14} color="white" />}
-          </View>
-          <Text className="text-[13px] text-[#3d4a3f]">Remember me</Text>
-        </TouchableOpacity>
-        <TouchableOpacity>
-          <Text className="text-[13px] font-medium text-[#1E5631]">Forgot password?</Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity activeOpacity={0.8} onPress={handleLogin} disabled={isSubmitting} className="mt-2 w-full">
-        <LinearGradient
-          colors={isSubmitting ? ["#8DE3A6", "#8DE3A6"] : ["#27AE60", "#2ECC71"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ borderRadius: 100 }}
-          className="w-full h-[54px] items-center justify-center flex-row"
+      <View style={styles.optionsRow}>
+        <TouchableOpacity
+          style={styles.rememberMeContainer}
+          onPress={() => setRememberMe(!rememberMe)}
+          activeOpacity={0.7}
         >
-          {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white p-3 text-center font-semibold text-[16px]">Sign In</Text>}
-        </LinearGradient>
-      </TouchableOpacity>
+          <View style={[
+            styles.checkbox,
+            rememberMe && styles.checkboxActive,
+          ]}>
+            {rememberMe && <MaterialIcons name="check" size={14} color={theme.colors.canvas.primary} />}
+          </View>
+          <Text style={styles.rememberMeText}>Remember me</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity>
+          <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Button
+        title="Sign In"
+        variant="primary"
+        size="lg"
+        onPress={handleLogin}
+        loading={isSubmitting}
+        disabled={isSubmitting}
+        style={styles.submitButton}
+      />
     </View>
   );
 };
@@ -196,14 +164,14 @@ const LoginForm = () => {
 // ==========================================
 // REGISTRATION FORM COMPONENT
 // ==========================================
-const RegisterForm = ({ onSuccess }) => {
+const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("Citizen");
+  const [selectedRole, setSelectedRole] = useState("CITIZEN");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -225,14 +193,13 @@ const RegisterForm = ({ onSuccess }) => {
 
     setIsSubmitting(true);
     try {
-      // Syncing with Web payload format: includes the user role
-      await api.post("/auth/register", { 
-        name, 
-        email, 
-        password, 
-        role: selectedRole 
+      await api.post("/auth/register", {
+        name,
+        email,
+        password,
+        role: selectedRole
       });
-      
+
       Alert.alert("Success!", "Your account has been created. Please sign in.");
       onSuccess();
     } catch (error: any) {
@@ -244,138 +211,148 @@ const RegisterForm = ({ onSuccess }) => {
     }
   };
 
+  const passwordMismatch = password && confirmPassword && password !== confirmPassword;
+
   return (
-    <View className="flex flex-col gap-5 w-full">
-      {/* Full Name */}
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Full Name</Text>
-        <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
-          <MaterialIcons name="person-outline" size={20} color="#6d7a6e" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Karim Benali"
-            placeholderTextColor="#bccabc"
-            autoCapitalize="words"
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
-      </View>
+    <View style={styles.formContainer}>
+      <Input
+        label="Full Name"
+        icon="user"
+        placeholder="Karim Benali"
+        autoCapitalize="words"
+        value={name}
+        onChangeText={setName}
+        containerStyle={styles.inputContainer}
+      />
 
-      {/* Email */}
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Email</Text>
-        <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
-          <MaterialIcons name="mail-outline" size={20} color="#6d7a6e" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="you@example.com"
-            placeholderTextColor="#bccabc"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-        </View>
-      </View>
+      <Input
+        label="Email"
+        icon="mail"
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+        containerStyle={styles.inputContainer}
+      />
 
-      {/* Password */}
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Password</Text>
-        <View className="w-full h-[52px] bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl flex-row items-center px-4">
-          <MaterialIcons name="lock-outline" size={20} color="#6d7a6e" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="Min. 8 characters"
-            placeholderTextColor="#bccabc"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="p-1">
-            <MaterialIcons name={showPassword ? "visibility" : "visibility-off"} size={20} color="#6d7a6e" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Input
+        label="Password"
+        icon="lock"
+        placeholder="Min. 8 characters"
+        secureTextEntry={!showPassword}
+        value={password}
+        onChangeText={setPassword}
+        rightIcon={showPassword ? "eye" : "eye-off"}
+        onRightIconPress={() => setShowPassword(!showPassword)}
+        containerStyle={styles.inputContainer}
+      />
 
-      {/* Confirm Password */}
-      <View className="flex flex-col gap-1.5">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">Confirm Password</Text>
-        <View className={`w-full h-[52px] bg-[#F9F9F9] border rounded-2xl flex-row items-center px-4 ${password && confirmPassword && password !== confirmPassword ? "border-red-400" : "border-[#ECECEC]"}`}>
-          <MaterialIcons name="lock-outline" size={20} color={password && confirmPassword && password !== confirmPassword ? "#ef4444" : "#6d7a6e"} />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[14px] ml-3"
-            placeholder="••••••••"
-            placeholderTextColor="#bccabc"
-            secureTextEntry={!showConfirmPassword}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
-          <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} className="p-1">
-            <MaterialIcons name={showConfirmPassword ? "visibility" : "visibility-off"} size={20} color="#6d7a6e" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Input
+        label="Confirm Password"
+        icon="lock"
+        placeholder="••••••••"
+        secureTextEntry={!showConfirmPassword}
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        rightIcon={showConfirmPassword ? "eye" : "eye-off"}
+        onRightIconPress={() => setShowConfirmPassword(!showConfirmPassword)}
+        error={passwordMismatch ? "Passwords do not match" : undefined}
+        containerStyle={styles.inputContainer}
+      />
 
-      {/* Role Selection Grid */}
-      <View className="flex flex-col gap-2 mt-1">
-        <Text className="text-[#1E5631] text-[12px] font-medium ml-1">I am a...</Text>
-        <View className="flex-row flex-wrap justify-between gap-y-3">
-          <TouchableOpacity 
-            onPress={() => setSelectedRole("CITIZEN")} 
-            style={selectedRole === "CITIZEN" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
-            className="w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
+      {/* Role Selection */}
+      <View style={styles.roleSection}>
+        <Text style={styles.roleLabel}>I am a...</Text>
+        <View style={styles.roleGrid}>
+          <TouchableOpacity
+            onPress={() => setSelectedRole("CITIZEN")}
+            style={[
+              styles.roleButton,
+              selectedRole === "CITIZEN" && styles.roleButtonActive,
+            ]}
           >
-            <FontAwesome5 name="leaf" size={15} color={selectedRole === "CITIZEN" ? "#27AE60" : "#6d7a6e"} />
-            <Text className={`text-[13px] font-medium ${selectedRole === "CITIZEN" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Citizen</Text>
+            <FontAwesome5
+              name="leaf"
+              size={15}
+              color={selectedRole === "CITIZEN" ? theme.colors.green[600] : theme.colors.text.tertiary}
+            />
+            <Text style={[
+              styles.roleButtonText,
+              selectedRole === "CITIZEN" && styles.roleButtonTextActive,
+            ]}>
+              Citizen
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            onPress={() => setSelectedRole("COLLECTOR")} 
-            style={selectedRole === "COLLECTOR" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
-            className="w-[48%] h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
+          <TouchableOpacity
+            onPress={() => setSelectedRole("COLLECTOR")}
+            style={[
+              styles.roleButton,
+              selectedRole === "COLLECTOR" && styles.roleButtonActive,
+            ]}
           >
-            <FontAwesome5 name="truck" size={14} color={selectedRole === "COLLECTOR" ? "#27AE60" : "#6d7a6e"} />
-            <Text className={`text-[13px] font-medium ${selectedRole === "COLLECTOR" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Collector</Text>
+            <FontAwesome5
+              name="truck"
+              size={14}
+              color={selectedRole === "COLLECTOR" ? theme.colors.green[600] : theme.colors.text.tertiary}
+            />
+            <Text style={[
+              styles.roleButtonText,
+              selectedRole === "COLLECTOR" && styles.roleButtonTextActive,
+            ]}>
+              Collector
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            onPress={() => setSelectedRole("RECYCLING_CENTER")} 
-            style={selectedRole === "RECYCLING_CENTER" ? { borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)' } : { borderColor: '#ECECEC', backgroundColor: '#F9F9F9' }}
-            className="w-full h-[48px] border rounded-xl flex-row items-center justify-center gap-2"
+          <TouchableOpacity
+            onPress={() => setSelectedRole("RECYCLING_CENTER")}
+            style={[
+              styles.roleButtonFull,
+              selectedRole === "RECYCLING_CENTER" && styles.roleButtonActive,
+            ]}
           >
-            <FontAwesome5 name="industry" size={15} color={selectedRole === "RECYCLING_CENTER" ? "#27AE60" : "#6d7a6e"} />
-            <Text className={`text-[13px] font-medium ${selectedRole === "RECYCLING_CENTER" ? "text-[#27AE60]" : "text-[#1b1c1c]"}`}>Recycling Centre</Text>
+            <FontAwesome5
+              name="industry"
+              size={15}
+              color={selectedRole === "RECYCLING_CENTER" ? theme.colors.green[600] : theme.colors.text.tertiary}
+            />
+            <Text style={[
+              styles.roleButtonText,
+              selectedRole === "RECYCLING_CENTER" && styles.roleButtonTextActive,
+            ]}>
+              Recycling Centre
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Terms Checkbox */}
-      <TouchableOpacity 
-        className="flex-row items-center gap-3 mt-1" 
-        onPress={() => setAgreeTerms(!agreeTerms)} 
+      <TouchableOpacity
+        style={styles.termsContainer}
+        onPress={() => setAgreeTerms(!agreeTerms)}
         activeOpacity={0.7}
       >
-        <View className={`w-5 h-5 rounded border items-center justify-center ${agreeTerms ? "bg-[#27AE60] border-[#27AE60]" : "bg-[#F9F9F9] border-[#ECECEC]"}`}>
-          {agreeTerms && <MaterialIcons name="check" size={14} color="white" />}
+        <View style={[
+          styles.checkbox,
+          agreeTerms && styles.checkboxActive,
+        ]}>
+          {agreeTerms && <MaterialIcons name="check" size={14} color={theme.colors.canvas.primary} />}
         </View>
-        <Text className="text-[12px] text-[#3d4a3f] flex-1 leading-4">
-          I agree to the <Text className="text-[#27AE60] font-semibold">Terms of Service</Text> and <Text className="text-[#27AE60] font-semibold">Privacy Policy</Text>
+        <Text style={styles.termsText}>
+          I agree to the <Text style={styles.termsLink}>Terms of Service</Text> and <Text style={styles.termsLink}>Privacy Policy</Text>
         </Text>
       </TouchableOpacity>
 
-      {/* Submit Button */}
-      <TouchableOpacity activeOpacity={0.8} onPress={handleRegister} disabled={isSubmitting} className="mt-4 w-full">
-        <LinearGradient
-          colors={isSubmitting ? ["#8DE3A6", "#8DE3A6"] : ["#27AE60", "#2ECC71"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ borderRadius: 100 }}
-          className="w-full h-[54px] items-center justify-center flex-row"
-        >
-          {isSubmitting ? <ActivityIndicator color="white" /> : <Text className="text-white p-3 text-center font-semibold text-[16px]">Create Account</Text>}
-        </LinearGradient>
-      </TouchableOpacity>
+      <Button
+        title="Create Account"
+        variant="primary"
+        size="lg"
+        onPress={handleRegister}
+        loading={isSubmitting}
+        disabled={isSubmitting}
+        style={styles.submitButton}
+      />
     </View>
   );
 };
@@ -418,59 +395,117 @@ export default function AuthScreen() {
   }, []);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1 bg-white">
-      <StatusBar barStyle="light-content" backgroundColor="#27AE60" />
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false} bounces={false}>
-        
-        <LinearGradient colors={["#27AE60", "#2ECC71"]} className="w-full pt-24 pb-16 items-center justify-center relative min-h-[350px] overflow-hidden">
-          <View className="absolute inset-0 z-0">
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.green[500]} />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+
+        {/* Header with Gradient & Leaf Animation */}
+        <LinearGradient
+          colors={[theme.colors.green[500], theme.colors.green[600]]}
+          style={styles.header}
+        >
+          <View style={styles.leafContainer}>
             {leaves.map((config) => (
               <AnimatedLeaf key={config.id} config={config} />
             ))}
           </View>
 
-          <View className="items-center mt-12 mb-8 z-10">
-            <MaterialIcons name="recycling" size={64} color="white" />
-            <Text className="text-white text-[28px] font-bold mt-2 tracking-tight">
+          <View style={styles.headerContent}>
+            <MaterialIcons name="recycling" size={64} color={theme.colors.canvas.primary} />
+            <Text style={styles.headerTitle}>
               {isLogin ? "Welcome back" : "Join Wasto"}
             </Text>
-            <Text className="text-white/85 text-[14px] mt-1">
+            <Text style={styles.headerSubtitle}>
               {isLogin ? "Sign in to continue making an impact" : "Create an account to start recycling"}
             </Text>
           </View>
 
-          <View className="absolute bottom-[-1px] left-0 right-0 z-10">
+          {/* Wave shape */}
+          <View style={styles.waveContainer}>
             <Svg height="45" width={width} viewBox="0 0 1440 120" preserveAspectRatio="none">
-              <Path d="M0,90 C150,115 300,115 450,100 C600,85 750,55 900,55 C1050,55 1200,85 1440,90 L1440,120 L0,120 Z" fill="#ffffff" />
+              <Path
+                d="M0,90 C150,115 300,115 450,100 C600,85 750,55 900,55 C1050,55 1200,85 1440,90 L1440,120 L0,120 Z"
+                fill={theme.colors.canvas.primary}
+              />
             </Svg>
           </View>
         </LinearGradient>
 
-        <View className="flex-1 bg-white px-6 pt-4 pb-8 z-20">
-          
-          <View className="w-full h-12 bg-[#f0eded] rounded-full p-1 flex-row mb-8">
-            <TouchableOpacity onPress={() => setIsLogin(true)} style={isLogin ? { backgroundColor: 'white' } : {}} className="flex-1 rounded-full items-center justify-center">
-              <Text className={`font-semibold text-[14px] ${isLogin ? 'text-[#1E5631]' : 'text-[#8A8F87]'}`}>Sign In</Text>
+        {/* Content Section */}
+        <View style={styles.content}>
+
+          {/* Segmented Control */}
+          <View style={styles.segmentedControl}>
+            <TouchableOpacity
+              onPress={() => setIsLogin(true)}
+              style={[
+                styles.segmentButton,
+                isLogin && styles.segmentButtonActive,
+              ]}
+            >
+              <Text style={[
+                styles.segmentText,
+                isLogin ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}>
+                Sign In
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsLogin(false)} style={!isLogin ? { backgroundColor: 'white' } : {}} className="flex-1 rounded-full items-center justify-center">
-              <Text className={`font-semibold text-[14px] ${!isLogin ? 'text-[#1E5631]' : 'text-[#8A8F87]'}`}>Create Account</Text>
+
+            <TouchableOpacity
+              onPress={() => setIsLogin(false)}
+              style={[
+                styles.segmentButton,
+                !isLogin && styles.segmentButtonActive,
+              ]}
+            >
+              <Text style={[
+                styles.segmentText,
+                !isLogin ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}>
+                Create Account
+              </Text>
             </TouchableOpacity>
           </View>
 
+          {/* Forms */}
           {isLogin ? <LoginForm /> : <RegisterForm onSuccess={() => setIsLogin(true)} />}
 
-          <View className="w-full flex-row items-center gap-4 my-8">
-            <View className="flex-1 h-[1px] bg-[#ECECEC]" />
-            <Text className="text-[10px] text-[#bccabc] uppercase tracking-wider font-medium">or continue with</Text>
-            <View className="flex-1 h-[1px] bg-[#ECECEC]" />
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with</Text>
+            <View style={styles.dividerLine} />
           </View>
 
-          <View className="flex flex-col gap-4 w-full">
-            <GoogleSignInButton onPress={handleGoogleLogin} isLoading={isGoogleLoading} />
-            <TouchableOpacity activeOpacity={0.7} className="w-full h-[52px] bg-white border border-[#ECECEC] rounded-2xl flex-row items-center justify-center gap-3">
-              <FontAwesome5 name="apple" size={20} color="#1b1c1c" />
-              <Text className="text-[#1b1c1c] font-medium text-[14px]">Apple</Text>
-            </TouchableOpacity>
+          {/* Social Login Buttons */}
+          <View style={styles.socialButtons}>
+            <Button
+              title={isGoogleLoading ? "Connecting…" : "Continue with Google"}
+              variant="secondary"
+              size="lg"
+              onPress={handleGoogleLogin}
+              loading={isGoogleLoading}
+              icon={!isGoogleLoading && <FontAwesome5 name="google" size={18} color="#EA4335" />}
+              iconPosition="left"
+              hapticFeedback={false}
+            />
+
+            <Button
+              title="Apple"
+              variant="secondary"
+              size="lg"
+              onPress={() => {}}
+              icon={<FontAwesome5 name="apple" size={20} color={theme.colors.text.primary} />}
+              iconPosition="left"
+              hapticFeedback={false}
+            />
           </View>
 
         </View>
@@ -478,3 +513,234 @@ export default function AuthScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  header: {
+    width: '100%',
+    paddingTop: theme.spacing['6xl'],
+    paddingBottom: theme.spacing['5xl'],
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    minHeight: 350,
+    overflow: 'hidden',
+  },
+  leafContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  headerContent: {
+    alignItems: 'center',
+    marginTop: theme.spacing['4xl'],
+    marginBottom: theme.spacing['2xl'],
+    zIndex: 10,
+  },
+  headerTitle: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize['4xl'].size,
+    fontFamily: theme.typography.fontFamily.bold,
+    marginTop: theme.spacing.sm,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    marginTop: theme.spacing.xs,
+    opacity: 0.85,
+  },
+  waveContainer: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+    paddingHorizontal: theme.spacing.xl,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing['2xl'],
+    zIndex: 20,
+  },
+  segmentedControl: {
+    width: '100%',
+    height: 48,
+    backgroundColor: theme.colors.canvas.tertiary,
+    borderRadius: theme.radius.full,
+    padding: theme.spacing.xs,
+    flexDirection: 'row',
+    marginBottom: theme.spacing['2xl'],
+  },
+  segmentButton: {
+    flex: 1,
+    borderRadius: theme.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentButtonActive: {
+    backgroundColor: theme.colors.canvas.primary,
+  },
+  segmentText: {
+    fontSize: theme.typography.fontSize.base.size,
+  },
+  segmentTextActive: {
+    color: theme.colors.green[700],
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  segmentTextInactive: {
+    color: theme.colors.text.quaternary,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  inputContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: theme.radius.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    backgroundColor: theme.colors.canvas.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: theme.colors.green[600],
+    borderColor: theme.colors.green[600],
+  },
+  rememberMeText: {
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.text.secondary,
+  },
+  forgotPasswordText: {
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.green[700],
+  },
+  submitButton: {
+    marginTop: theme.spacing.sm,
+  },
+  roleSection: {
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
+  },
+  roleLabel: {
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.green[700],
+    marginBottom: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  roleButton: {
+    width: '48%',
+    height: 48,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    backgroundColor: theme.colors.canvas.tertiary,
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+  },
+  roleButtonFull: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    backgroundColor: theme.colors.canvas.tertiary,
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+  },
+  roleButtonActive: {
+    borderColor: theme.colors.green[600],
+    backgroundColor: theme.colors.green[50],
+  },
+  roleButtonText: {
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.primary,
+  },
+  roleButtonTextActive: {
+    color: theme.colors.green[600],
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.lg,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.text.secondary,
+    lineHeight: 16,
+  },
+  termsLink: {
+    color: theme.colors.green[600],
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: theme.spacing['2xl'],
+    gap: theme.spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.border.default,
+  },
+  dividerText: {
+    fontSize: theme.typography.fontSize.xs.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.disabled,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  socialButtons: {
+    width: '100%',
+    gap: theme.spacing.lg,
+  },
+});

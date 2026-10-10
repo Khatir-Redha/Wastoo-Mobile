@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, Image, ScrollView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import PostService, { Post } from '../../../services/post.service';
+import { Button, Card } from '../../components/ui';
+import { theme } from '../../theme/tokens';
 
 export default function CreatePickupScreen() {
   const router = useRouter();
   const { post_id } = useLocalSearchParams();
-  
+
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [contactNumber, setContactNumber] = useState('');
@@ -36,82 +38,92 @@ export default function CreatePickupScreen() {
       Alert.alert('Required', 'Please provide a valid contact number.');
       return;
     }
-    
-    // Pass data to schedule screen
+
     router.push({
       pathname: '/pickups/schedule',
-      params: { 
+      params: {
         post_id: post_id,
         contact_number: contactNumber,
-        access_notes: accessNotes 
+        access_notes: accessNotes
       }
     });
   };
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#2ECC71" />
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   if (!post) {
     return (
-      <View className="flex-1 bg-white items-center justify-center p-6">
-        <Text className="text-lg font-bold text-gray-800">Post not found</Text>
-        <TouchableOpacity onPress={() => router.back()} className="mt-4 bg-[#2ECC71] px-6 py-3 rounded-full">
-          <Text className="text-white font-bold">Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorTitle}>Post not found</Text>
+        <Button
+          title="Go Back"
+          variant="primary"
+          onPress={() => router.back()}
+          style={styles.errorButton}
+        />
       </View>
     );
   }
 
-  const imageUrl = (post.images && post.images.length > 0) 
-    ? (typeof post.images[0] === 'string' ? post.images[0] : (post.images[0] as any).url) 
+  const imageUrl = (post.images && post.images.length > 0)
+    ? (typeof post.images[0] === 'string' ? post.images[0] : (post.images[0] as any).url)
     : 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
 
   return (
-    <View className="flex-1 bg-white">
+    <View style={styles.container}>
       {/* Header */}
-      <View className="px-5 pt-12 pb-4 bg-white border-b border-[#ECECEC] flex-row items-center">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-          <Feather name="arrow-left" size={24} color="#1b1c1c" />
-        </TouchableOpacity>
-        <Text className="text-[20px] font-bold text-[#1b1c1c] ml-2">Request Pickup</Text>
+      <View style={styles.header}>
+        <Button
+          title=""
+          variant="ghost"
+          onPress={() => router.back()}
+          icon={<Feather name="arrow-left" size={24} color={theme.colors.text.primary} />}
+          style={styles.backButton}
+        />
+        <Text style={styles.headerTitle}>Request Pickup</Text>
       </View>
 
-      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Post Summary Card */}
-        <View className="bg-[#F9F9F9] border border-[#ECECEC] rounded-[16px] p-4 flex-row items-center mb-8">
-          <Image source={{ uri: imageUrl }} className="w-20 h-20 rounded-[12px] bg-[#EAEAEA]" resizeMode="cover" />
-          <View className="flex-1 ml-4 justify-center">
-            <Text className="font-bold text-[16px] text-[#1b1c1c] mb-1" numberOfLines={1}>
-              {(post as any).title || 'Untitled Listing'}
-            </Text>
-            <View className="flex-row items-center mb-1">
-              <MaterialCommunityIcons name="recycle" size={14} color="#6D7A6E" />
-              <Text className="text-[13px] text-[#6D7A6E] ml-1">
-                {post.category} • {(post as any).weight || 'TBD'} kg
+        <Card variant="default" padding="md" style={styles.postCard}>
+          <View style={styles.postCardContent}>
+            <Image source={{ uri: imageUrl }} style={styles.postImage} resizeMode="cover" />
+            <View style={styles.postInfo}>
+              <Text style={styles.postTitle} numberOfLines={1}>
+                {(post as any).title || 'Untitled Listing'}
+              </Text>
+              <View style={styles.postMeta}>
+                <MaterialCommunityIcons name="recycle" size={14} color={theme.colors.text.tertiary} />
+                <Text style={styles.postMetaText}>
+                  {post.category} • {(post as any).weight || 'TBD'} kg
+                </Text>
+              </View>
+              <Text style={styles.postAddress} numberOfLines={1}>
+                {(post as any).address || 'No location provided'}
               </Text>
             </View>
-            <Text className="text-[12px] text-[#8A8F87]" numberOfLines={1}>
-              {(post as any).address || 'No location provided'}
-            </Text>
           </View>
-        </View>
+        </Card>
 
         {/* Contact Info Section */}
-        <Text className="text-[18px] font-bold text-[#1b1c1c] mb-4">Contact Information</Text>
-        
-        <View className="mb-6">
-          <Text className="text-[#6D7A6E] font-medium mb-2 ml-1 text-sm">Contact Number <Text className="text-red-500">*</Text></Text>
-          <View className="flex-row items-center bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl px-4 h-[56px]">
-            <Feather name="phone" size={20} color="#8A8F87" />
+        <Text style={styles.sectionTitle}>Contact Information</Text>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>
+            Contact Number <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.inputContainer}>
+            <Feather name="phone" size={20} color={theme.colors.text.quaternary} />
             <TextInput
-              className="flex-1 text-[#1b1c1c] text-[16px] ml-3"
+              style={styles.input}
               placeholder="+213 555 123 456"
-              placeholderTextColor="#B0B0B0"
+              placeholderTextColor={theme.colors.text.disabled}
               keyboardType="phone-pad"
               value={contactNumber}
               onChangeText={setContactNumber}
@@ -119,13 +131,13 @@ export default function CreatePickupScreen() {
           </View>
         </View>
 
-        <View className="mb-8">
-          <Text className="text-[#6D7A6E] font-medium mb-2 ml-1 text-sm">Access Notes (Optional)</Text>
-          <View className="bg-[#F9F9F9] border border-[#ECECEC] rounded-2xl p-4 min-h-[120px]">
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Access Notes (Optional)</Text>
+          <View style={[styles.inputContainer, styles.textAreaContainer]}>
             <TextInput
-              className="flex-1 text-[#1b1c1c] text-[16px]"
+              style={[styles.input, styles.textArea]}
               placeholder="e.g. Ring the second bell, gate code is 1234, call upon arrival..."
-              placeholderTextColor="#B0B0B0"
+              placeholderTextColor={theme.colors.text.disabled}
               multiline
               textAlignVertical="top"
               value={accessNotes}
@@ -133,20 +145,175 @@ export default function CreatePickupScreen() {
             />
           </View>
         </View>
-
       </ScrollView>
 
       {/* Footer */}
-      <View className="px-6 py-4 border-t border-[#F0F0F0] bg-white">
-        <TouchableOpacity 
-          activeOpacity={0.8}
+      <View style={styles.footer}>
+        <Button
+          title="Continue"
+          variant="primary"
+          size="lg"
           onPress={handleContinue}
-          className="w-full bg-[#2ECC71] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
-        >
-          <Text className="text-white text-[17px] font-bold mr-2">Continue</Text>
-          <Feather name="arrow-right" size={20} color="white" />
-        </TouchableOpacity>
+          icon={<Feather name="arrow-right" size={20} color={theme.colors.canvas.primary} />}
+          iconPosition="right"
+        />
       </View>
     </View>
   );
 }
+
+// Import TextInput
+import { TextInput } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  errorTitle: {
+    fontSize: theme.typography.fontSize.xl.size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
+  },
+  errorButton: {
+    marginTop: theme.spacing.lg,
+  },
+  header: {
+    paddingHorizontal: theme.spacing.lg + 4,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.canvas.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.default,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+    marginRight: theme.spacing.sm,
+  },
+  headerTitle: {
+    fontSize: theme.typography.fontSize['2xl'].size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: theme.spacing.xl,
+  },
+  postCard: {
+    marginBottom: theme.spacing['2xl'],
+  },
+  postCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  postImage: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.canvas.tertiary,
+  },
+  postInfo: {
+    flex: 1,
+    marginLeft: theme.spacing.lg,
+    justifyContent: 'center',
+  },
+  postTitle: {
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize.lg.size,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  postMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  postMetaText: {
+    fontSize: theme.typography.fontSize.sm.size,
+    color: theme.colors.text.tertiary,
+    fontFamily: theme.typography.fontFamily.regular,
+    marginLeft: theme.spacing.xs,
+  },
+  postAddress: {
+    fontSize: theme.typography.fontSize.sm.size,
+    color: theme.colors.text.quaternary,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  sectionTitle: {
+    fontSize: theme.typography.fontSize.xl.size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
+  },
+  inputGroup: {
+    marginBottom: theme.spacing.xl,
+  },
+  inputLabel: {
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+    marginBottom: theme.spacing.sm,
+    marginLeft: theme.spacing.xs,
+  },
+  required: {
+    color: theme.colors.error,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.canvas.tertiary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.xl,
+    paddingHorizontal: theme.spacing.lg,
+    height: theme.componentSizes.input.lg.height,
+  },
+  textAreaContainer: {
+    height: 120,
+    alignItems: 'flex-start',
+    paddingVertical: theme.spacing.lg,
+  },
+  input: {
+    flex: 1,
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    color: theme.colors.text.primary,
+    marginLeft: theme.spacing.md,
+  },
+  textArea: {
+    marginLeft: 0,
+    textAlignVertical: 'top',
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+});

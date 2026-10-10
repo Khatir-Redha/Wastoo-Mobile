@@ -46,8 +46,8 @@ export default function BrowseScreen() {
           activeCategory === "all" ? {} : { category: activeCategory };
 
         const response = await PostService.getAllPosts(query);
-        setPosts(response.data);
-        console.log(response.data[0].images[0].url);
+        const postsArray = Array.isArray(response) ? response : (response?.data || []);
+        setPosts(postsArray);
       } catch (error) {
         console.error("Error fetching posts:", error);
       } finally {
@@ -58,24 +58,6 @@ export default function BrowseScreen() {
     fetchPosts();
   }, [activeCategory]);
 
-  posts.map((item) => {
-    // 1. Get the URL and use .trim() to kill hidden whitespace!
-    let rawUrl = item.images?.[0]?.url?.trim();
-
-    // 2. Fallback if empty
-    if (!rawUrl) {
-      rawUrl =
-        "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80";
-    } else if (
-      rawUrl.includes("cloudinary.com") &&
-      rawUrl.startsWith("http://")
-    ) {
-      rawUrl = rawUrl.replace("http://", "https://");
-    }
-
-    const displayImage = rawUrl;
-    console.log(displayImage);
-  });
   return (
     <View style={{ flex: 1 }}>
     <SafeAreaView
@@ -182,10 +164,9 @@ export default function BrowseScreen() {
               const isFree = (item as any).price === 0 || !(item as any).price;
               const badgeText = isFree ? "FREE" : `$${(item as any).price}`;
 
-              const formattedDate = new Date(item.createdAt).toLocaleDateString(
-                "en-US",
-                { month: "short", day: "numeric" },
-              );
+              const formattedDate = item.createdAt 
+                ? new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) 
+                : "Recent";
 
               return (
                 <TouchableOpacity

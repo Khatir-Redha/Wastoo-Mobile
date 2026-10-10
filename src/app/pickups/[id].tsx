@@ -1,32 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
+import { View, Text, ScrollView, Alert, Image, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePickups } from '../../../hooks/usePickups';
 import { Pickup, PickupStatus } from '../../../services/pickup.service';
-import api from '../../../lib/api'; 
+import api from '../../../lib/api';
 import PostService, { Post } from '../../../services/post.service';
 import CancelPickupModal from '../../components/CancelPickupModal';
+import { Button, Card, StatusStepper } from '../../components/ui';
+import { theme } from '../../theme/tokens';
 
 export default function PickupDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { updateStatus, deletePickup, loading } = usePickups();
-  
+
   const [pickup, setPickup] = useState<Pickup | null>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
-  
+
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
 
-  // Mocking roles: in a real app, this comes from auth context
-  // Set to CITIZEN to see citizen view, COLLECTOR to see collector view
-  const currentUserRole = 'CITIZEN'; 
+  const currentUserRole = 'CITIZEN';
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get(`/pickup`); 
+        const res = await api.get(`/pickup`);
         const foundPickup = res.data.find((p: Pickup) => p.id.toString() === id);
         if (foundPickup) {
           setPickup(foundPickup);
@@ -55,7 +55,7 @@ export default function PickupDetailsScreen() {
   const handleCancelConfirm = async (reason: string, notes: string) => {
     setCancelModalVisible(false);
     try {
-      await deletePickup(Number(id)); 
+      await deletePickup(Number(id));
       Alert.alert('Cancelled', 'Pickup request has been cancelled.');
       router.back();
     } catch (err: any) {
@@ -65,174 +65,170 @@ export default function PickupDetailsScreen() {
 
   if (fetchLoading) {
     return (
-      <View className="flex-1 bg-[#F9F9F9] items-center justify-center">
-        <ActivityIndicator size="large" color="#2ECC71" />
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   if (!pickup || !post) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#F9F9F9]">
-        <Text className="text-lg font-medium text-[#6D7A6E]">Pickup not found</Text>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Pickup not found</Text>
       </View>
     );
   }
 
-  const imageUrl = (post.images && post.images.length > 0) 
-    ? (typeof post.images[0] === 'string' ? post.images[0] : (post.images[0] as any).url) 
+  const imageUrl = (post.images && post.images.length > 0)
+    ? (typeof post.images[0] === 'string' ? post.images[0] : (post.images[0] as any).url)
     : 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
 
-  const TIMELINE_STEPS = ['PENDING', 'ASSIGNED', 'IN_TRANSIT', 'COMPLETED'];
-  const currentStepIndex = TIMELINE_STEPS.indexOf(pickup.status);
-
   return (
-    <View className="flex-1 bg-[#F9F9F9]">
+    <View style={styles.container}>
       {/* Header */}
-      <View className="px-5 pt-12 pb-4 bg-white border-b border-[#ECECEC] flex-row items-center">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-          <Feather name="arrow-left" size={24} color="#1b1c1c" />
-        </TouchableOpacity>
-        <Text className="text-[20px] font-bold text-[#1b1c1c] ml-2">Pickup #{pickup.id}</Text>
+      <View style={styles.header}>
+        <Button
+          title=""
+          variant="ghost"
+          onPress={() => router.back()}
+          icon={<Feather name="arrow-left" size={24} color={theme.colors.text.primary} />}
+          style={styles.backButton}
+        />
+        <Text style={styles.headerTitle}>Pickup #{pickup.id}</Text>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-        
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+
         {/* Status Timeline */}
         {pickup.status !== PickupStatus.CANCELED && (
-          <View className="bg-white p-5 rounded-2xl shadow-sm border border-[#ECECEC] mb-6 flex-row justify-between items-center relative">
-            <View className="absolute top-8 left-10 right-10 h-1 bg-[#EAEAEA] z-0" />
-            <View className="absolute top-8 left-10 h-1 bg-[#2ECC71] z-0" style={{ width: `${(Math.max(currentStepIndex, 0) / 3) * 100}%` }} />
-            
-            {TIMELINE_STEPS.map((step, idx) => {
-              const isActive = currentStepIndex >= idx;
-              return (
-                <View key={step} className="items-center z-10 w-16">
-                  <View className={`w-6 h-6 rounded-full items-center justify-center mb-1 ${isActive ? 'bg-[#2ECC71]' : 'bg-[#EAEAEA]'}`}>
-                    {isActive && <Feather name="check" size={12} color="white" />}
-                  </View>
-                  <Text className={`text-[10px] text-center font-bold ${isActive ? 'text-[#1E5631]' : 'text-[#B0B0B0]'}`}>
-                    {step.replace('_', '\n')}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+          <Card variant="default" padding="none" style={styles.timelineCard}>
+            <StatusStepper currentStatus={pickup.status as any} />
+          </Card>
         )}
 
         {pickup.status === PickupStatus.CANCELED && (
-          <View className="bg-red-50 p-4 rounded-2xl mb-6 flex-row items-center border border-red-100">
-            <Feather name="x-circle" size={24} color="#E74C3C" />
-            <Text className="text-[#C0392B] font-bold text-[16px] ml-3">This pickup was cancelled.</Text>
-          </View>
+          <Card variant="flat" padding="md" style={styles.canceledCard}>
+            <View style={styles.canceledContent}>
+              <Feather name="x-circle" size={24} color={theme.colors.error} />
+              <Text style={styles.canceledText}>This pickup was cancelled.</Text>
+            </View>
+          </Card>
         )}
 
         {/* Post Info */}
-        <View className="bg-white p-5 rounded-2xl shadow-sm border border-[#ECECEC] mb-6">
-          <Text className="text-[#1E5631] text-[12px] font-bold tracking-wider mb-4">WASTE DETAILS</Text>
-          <View className="flex-row mb-4">
-            <Image source={{ uri: imageUrl }} className="w-20 h-20 rounded-[12px] bg-[#EAEAEA]" />
-            <View className="ml-4 flex-1">
-              <Text className="font-bold text-[16px] text-[#1b1c1c] mb-1">{(post as any).title || 'Untitled'}</Text>
-              <Text className="text-[#6D7A6E] text-[14px] mb-1">{post.category} • {(post as any).quantity || 'TBD'} kg</Text>
-              <TouchableOpacity onPress={() => router.push(`/citizen/${pickup.post_id}`)} className="mt-1">
-                <Text className="text-[#2ECC71] text-[13px] font-bold">View Original Post</Text>
-              </TouchableOpacity>
+        <Card variant="default" padding="lg" style={styles.section}>
+          <Text style={styles.sectionLabel}>WASTE DETAILS</Text>
+          <View style={styles.postContent}>
+            <Image source={{ uri: imageUrl }} style={styles.postImage} />
+            <View style={styles.postInfo}>
+              <Text style={styles.postTitle}>{(post as any).title || 'Untitled'}</Text>
+              <Text style={styles.postMeta}>{post.category} • {(post as any).quantity || 'TBD'} kg</Text>
+              <Button
+                title="View Original Post"
+                variant="ghost"
+                size="sm"
+                onPress={() => router.push(`/citizen/${pickup.post_id}`)}
+                style={styles.viewPostButton}
+                textStyle={styles.viewPostButtonText}
+              />
             </View>
           </View>
           {post.description && (
-            <Text className="text-[#6D7A6E] text-[14px] leading-5">{post.description}</Text>
+            <Text style={styles.postDescription}>{post.description}</Text>
           )}
-        </View>
+        </Card>
 
         {/* Schedule & Location */}
-        <View className="bg-white p-5 rounded-2xl shadow-sm border border-[#ECECEC] mb-6">
-          <Text className="text-[#1E5631] text-[12px] font-bold tracking-wider mb-4">SCHEDULE & LOCATION</Text>
-          
-          <View className="flex-row items-center mb-4">
-            <View className="w-10 h-10 bg-[#E8F8EE] rounded-full items-center justify-center mr-3">
-              <Feather name="calendar" size={18} color="#1E5631" />
+        <Card variant="default" padding="lg" style={styles.section}>
+          <Text style={styles.sectionLabel}>SCHEDULE & LOCATION</Text>
+
+          <View style={styles.infoRow}>
+            <View style={styles.iconBadge}>
+              <Feather name="calendar" size={18} color={theme.colors.green[700]} />
             </View>
-            <View>
-              <Text className="text-[#6D7A6E] text-[12px] font-medium">Scheduled Time</Text>
-              <Text className="text-[#1b1c1c] text-[15px] font-semibold">
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Scheduled Time</Text>
+              <Text style={styles.infoValue}>
                 {pickup.scheduled_date ? new Date(pickup.scheduled_date).toLocaleDateString() : 'ASAP'}
                 {pickup.start_time ? ` • ${pickup.start_time} - ${pickup.end_time}` : ''}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row items-center">
-            <View className="w-10 h-10 bg-[#E8F8EE] rounded-full items-center justify-center mr-3">
-              <Feather name="map-pin" size={18} color="#1E5631" />
+          <View style={styles.infoRow}>
+            <View style={styles.iconBadge}>
+              <Feather name="map-pin" size={18} color={theme.colors.green[700]} />
             </View>
-            <View className="flex-1">
-              <Text className="text-[#6D7A6E] text-[12px] font-medium">Pickup Address</Text>
-              <Text className="text-[#1b1c1c] text-[15px] font-semibold">
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Pickup Address</Text>
+              <Text style={styles.infoValue}>
                 {(post as any).address || 'No address provided'}
               </Text>
             </View>
           </View>
-        </View>
+        </Card>
 
         {/* Contact & Access Notes */}
-        <View className="bg-white p-5 rounded-2xl shadow-sm border border-[#ECECEC] mb-6">
-          <Text className="text-[#1E5631] text-[12px] font-bold tracking-wider mb-4">CONTACT & ACCESS</Text>
-          
-          <View className="flex-row items-center mb-4 border-b border-[#F0F0F0] pb-4">
-            <Feather name="phone" size={18} color="#6D7A6E" />
-            <Text className="text-[#1b1c1c] text-[15px] ml-3 flex-1">{pickup.contact_number || 'No contact provided'}</Text>
+        <Card variant="default" padding="lg" style={styles.section}>
+          <Text style={styles.sectionLabel}>CONTACT & ACCESS</Text>
+
+          <View style={styles.contactRow}>
+            <Feather name="phone" size={18} color={theme.colors.text.tertiary} />
+            <Text style={styles.contactText}>{pickup.contact_number || 'No contact provided'}</Text>
           </View>
-          
-          <View className="flex-row items-start">
-            <Feather name="key" size={18} color="#6D7A6E" className="mt-1" />
-            <Text className="text-[#1b1c1c] text-[15px] ml-3 flex-1 leading-5">{pickup.access_notes || 'No access notes provided'}</Text>
+
+          <View style={styles.notesRow}>
+            <Feather name="key" size={18} color={theme.colors.text.tertiary} style={styles.notesIcon} />
+            <Text style={styles.notesText}>{pickup.access_notes || 'No access notes provided'}</Text>
           </View>
-        </View>
+        </Card>
 
       </ScrollView>
 
-      {/* Action Buttons based on Role & Status */}
-      <View className="px-6 py-4 border-t border-[#F0F0F0] bg-white">
-        
+      {/* Action Buttons */}
+      <View style={styles.footer}>
         {currentUserRole === 'CITIZEN' && (pickup.status === PickupStatus.PENDING || pickup.status === PickupStatus.ASSIGNED) && (
-          <TouchableOpacity 
+          <Button
+            title="Cancel Pickup"
+            variant="danger"
+            size="lg"
             onPress={() => setCancelModalVisible(true)}
-            className="w-full h-[56px] bg-white border-2 border-[#E74C3C] rounded-full flex-row items-center justify-center"
-          >
-            <Text className="text-[#E74C3C] font-bold text-[16px]">Cancel Pickup</Text>
-          </TouchableOpacity>
+          />
         )}
 
         {currentUserRole === 'COLLECTOR' && pickup.status === PickupStatus.ASSIGNED && (
-          <TouchableOpacity 
+          <Button
+            title="Start Pickup (In Transit)"
+            variant="primary"
+            size="lg"
             onPress={handleStartTransit}
+            loading={loading}
             disabled={loading}
-            className="w-full bg-[#2ECC71] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
-          >
-            {loading ? <ActivityIndicator color="white" /> : <Text className="text-white font-bold text-[16px]">Start Pickup (In Transit)</Text>}
-          </TouchableOpacity>
+          />
         )}
 
         {currentUserRole === 'COLLECTOR' && pickup.status === PickupStatus.IN_TRANSIT && (
-          <TouchableOpacity 
+          <Button
+            title="Complete Pickup"
+            variant="primary"
+            size="lg"
             onPress={() => router.push(`/pickups/confirm?id=${pickup.id}`)}
-            className="w-full bg-[#1E5631] h-[56px] rounded-full flex-row items-center justify-center shadow-sm"
-          >
-            <Text className="text-white font-bold text-[16px]">Complete Pickup</Text>
-            <Feather name="check-circle" size={20} color="white" className="ml-2" />
-          </TouchableOpacity>
+            icon={<Feather name="check-circle" size={20} color={theme.colors.canvas.primary} />}
+            iconPosition="right"
+          />
         )}
 
         {pickup.status === PickupStatus.COMPLETED && (
-          <TouchableOpacity className="w-full h-[56px] bg-[#E8F8EE] rounded-full flex-row items-center justify-center">
-            <Text className="text-[#1E5631] font-bold text-[16px]">View Receipt</Text>
-          </TouchableOpacity>
+          <Button
+            title="View Receipt"
+            variant="secondary"
+            size="lg"
+            onPress={() => {}}
+          />
         )}
-
       </View>
 
-      <CancelPickupModal 
+      <CancelPickupModal
         visible={cancelModalVisible}
         onClose={() => setCancelModalVisible(false)}
         onConfirm={handleCancelConfirm}
@@ -240,3 +236,194 @@ export default function PickupDetailsScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.secondary,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.canvas.secondary,
+  },
+  errorText: {
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+  },
+  header: {
+    paddingHorizontal: theme.spacing.lg + 4,
+    paddingTop: theme.spacing['4xl'],
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.canvas.primary,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.default,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    padding: 0,
+    marginRight: theme.spacing.sm,
+  },
+  headerTitle: {
+    fontSize: theme.typography.fontSize['2xl'].size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: theme.spacing.lg + 4,
+    paddingBottom: 100,
+  },
+  timelineCard: {
+    marginBottom: theme.spacing.xl,
+  },
+  canceledCard: {
+    marginBottom: theme.spacing.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.status.canceled.bg,
+  },
+  canceledContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  canceledText: {
+    color: theme.colors.error,
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize.lg.size,
+    marginLeft: theme.spacing.md,
+  },
+  section: {
+    marginBottom: theme.spacing.xl,
+  },
+  sectionLabel: {
+    color: theme.colors.green[700],
+    fontSize: theme.typography.fontSize.xs.size,
+    fontFamily: theme.typography.fontFamily.bold,
+    letterSpacing: 1,
+    marginBottom: theme.spacing.lg,
+  },
+  postContent: {
+    flexDirection: 'row',
+    marginBottom: theme.spacing.lg,
+  },
+  postImage: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.canvas.tertiary,
+  },
+  postInfo: {
+    marginLeft: theme.spacing.lg,
+    flex: 1,
+  },
+  postTitle: {
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: theme.typography.fontSize.lg.size,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  postMeta: {
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    marginBottom: theme.spacing.xs,
+  },
+  viewPostButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 0,
+    height: 'auto',
+    marginTop: theme.spacing.xs,
+  },
+  viewPostButtonText: {
+    fontSize: theme.typography.fontSize.sm.size,
+  },
+  postDescription: {
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    lineHeight: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  iconBadge: {
+    width: 40,
+    height: 40,
+    backgroundColor: theme.colors.status.completed.bg,
+    borderRadius: theme.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.md,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    marginBottom: 2,
+  },
+  infoValue: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.md.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.light,
+  },
+  contactText: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.md.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    marginLeft: theme.spacing.md,
+    flex: 1,
+  },
+  notesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  notesIcon: {
+    marginTop: 2,
+  },
+  notesText: {
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.md.size,
+    fontFamily: theme.typography.fontFamily.regular,
+    marginLeft: theme.spacing.md,
+    flex: 1,
+    lineHeight: 20,
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+    backgroundColor: theme.colors.canvas.primary,
+  },
+});
