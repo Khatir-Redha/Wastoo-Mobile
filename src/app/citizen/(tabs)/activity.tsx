@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import PostService, { Post } from "../../../../services/post.service";
 import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
+import NotificationBell from '../../../components/NotificationBell';
 
 // Helper: icon per category
 const getCategoryIcon = (category: string) => {
@@ -48,9 +49,9 @@ const getStatusStyle = (status: string) => {
     case 'PENDING':    return { bg: '#FFF8E1', text: '#F59E0B' };
     case 'ASSIGNED':   return { bg: '#EFF6FF', text: '#3B82F6' };
     case 'IN_TRANSIT': return { bg: '#F5F3FF', text: '#8B5CF6' };
-    case 'COMPLETED':  return { bg: '#E8F8EE', text: '#1E5631' };
+    case 'COMPLETED':  return { bg: '#E8F8EE', text: '#172B2A' };
     case 'CANCELED':   return { bg: '#FEF2F2', text: '#EF4444' };
-    default:           return { bg: '#F4F4F4', text: '#6D7A6E' };
+    default:           return { bg: '#F4F4F4', text: '#64756D' };
   }
 };
 
@@ -157,16 +158,19 @@ export default function ActivityScreen() {
     <SafeAreaView className="flex-1 bg-white" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
       {/* Header */}
       <View className="px-5 pt-6 pb-4 bg-white z-10">
-        <Text className="text-[24px] font-bold text-[#1E5631]">Activity</Text>
+        <View className="flex-row justify-between items-center">
+          <Text className="text-[24px] font-bold text-[#172B2A]">Activity</Text>
+          <NotificationBell />
+        </View>
 
         {/* Main Segmented Control */}
-        <View className="flex-row mt-4 bg-[#F9F9F9] rounded-full p-1 h-12">
+        <View className="flex-row mt-4 bg-[#F6FAF7] rounded-full p-1 h-12">
           <TouchableOpacity
             onPress={() => setActiveTab('posts')}
             className="flex-1 items-center justify-center rounded-full"
             style={activeTab === 'posts' ? { backgroundColor: 'white', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 } : {}}
           >
-            <Text className={`text-[14px] ${activeTab === 'posts' ? 'text-[#1E5631] font-semibold' : 'text-[#6D7A6E] font-medium'}`}>
+            <Text className={`text-[14px] ${activeTab === 'posts' ? 'text-[#172B2A] font-semibold' : 'text-[#64756D] font-medium'}`}>
               My Posts
             </Text>
           </TouchableOpacity>
@@ -176,7 +180,7 @@ export default function ActivityScreen() {
             className="flex-1 items-center justify-center rounded-full"
             style={activeTab === 'pickups' ? { backgroundColor: 'white', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2 } : {}}
           >
-            <Text className={`text-[14px] ${activeTab === 'pickups' ? 'text-[#1E5631] font-semibold' : 'text-[#6D7A6E] font-medium'}`}>
+            <Text className={`text-[14px] ${activeTab === 'pickups' ? 'text-[#172B2A] font-semibold' : 'text-[#64756D] font-medium'}`}>
               My Pickups
             </Text>
           </TouchableOpacity>
@@ -187,7 +191,7 @@ export default function ActivityScreen() {
       {activeTab === 'posts' ? (
         <View className="flex-1">
           {/* Sub-filters */}
-          <View className="flex-row px-5 border-b border-[#ECECEC] mb-4">
+          <View className="flex-row px-5 border-b border-[#E2ECE6] mb-4">
             {(['open', 'claimed', 'completed'] as const).map((status) => {
               const isActive = activeStatus === status;
               const count = posts.filter(p => (p.status?.toLowerCase() || 'open') === status).length;
@@ -195,9 +199,9 @@ export default function ActivityScreen() {
                 <TouchableOpacity
                   key={status}
                   onPress={() => setActiveStatus(status)}
-                  className={`mr-6 pb-3 border-b-[3px] ${isActive ? 'border-[#27AE60]' : 'border-transparent'}`}
+                  className={`mr-6 pb-3 border-b-[3px] ${isActive ? 'border-[#087F5B]' : 'border-transparent'}`}
                 >
-                  <Text className={`text-[14px] ${isActive ? 'text-[#1E5631] font-semibold' : 'text-[#6D7A6E] font-medium'}`}>
+                  <Text className={`text-[14px] ${isActive ? 'text-[#172B2A] font-semibold' : 'text-[#64756D] font-medium'}`}>
                     {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
                   </Text>
                 </TouchableOpacity>
@@ -207,16 +211,16 @@ export default function ActivityScreen() {
 
           <ScrollView
             className="flex-1 px-5"
-            contentContainerStyle={{ paddingBottom: 100, gap: 16 }}
+            contentContainerStyle={{ paddingBottom: 160, gap: 16 }}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#27AE60" />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#087F5B" />}
           >
             {postsLoading ? (
-              <ActivityIndicator size="large" color="#27AE60" className="mt-10" />
+              <ActivityIndicator size="large" color="#087F5B" className="mt-10" />
             ) : filteredPosts.length === 0 ? (
               <View className="items-center justify-center mt-10">
-                <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#ECECEC" />
-                <Text className="text-[#6D7A6E] mt-3">No {activeStatus} posts found.</Text>
+                <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#E2ECE6" />
+                <Text className="text-[#64756D] mt-3">No {activeStatus} posts found.</Text>
               </View>
             ) : (
               filteredPosts.map((post) => {
@@ -232,26 +236,26 @@ export default function ActivityScreen() {
                     key={post.id}
                     activeOpacity={0.7}
                     onPress={() => router.push(`/citizen/${post.id}/update-post`)}
-                    className="bg-white border border-[#ECECEC] rounded-[16px] p-3 flex-row items-center"
+                    className="bg-white border border-[#E2ECE6] rounded-[16px] p-3 flex-row items-center"
                   >
-                    <Image source={{ uri: rawUrl }} className="w-16 h-16 rounded-[8px] bg-[#F9F9F9]" resizeMode="cover" />
+                    <Image source={{ uri: rawUrl }} className="w-16 h-16 rounded-[8px] bg-[#F6FAF7]" resizeMode="cover" />
                     <View className="flex-1 ml-4 justify-center">
-                      <Text className="font-semibold text-[14px] text-[#1b1c1c] mb-1" numberOfLines={1}>
+                      <Text className="font-semibold text-[14px] text-[#172B2A] mb-1" numberOfLines={1}>
                         {(post as any).title || 'Untitled Listing'}
                       </Text>
                       <View className="flex-row items-center mb-1">
-                        <MaterialCommunityIcons name={getCategoryIcon(post.category || '')} size={14} color="#6D7A6E" />
-                        <Text className="text-[12px] text-[#6D7A6E] ml-1">
+                        <MaterialCommunityIcons name={getCategoryIcon(post.category || '')} size={14} color="#64756D" />
+                        <Text className="text-[12px] text-[#64756D] ml-1">
                           {post.category?.charAt(0).toUpperCase() + (post.category?.slice(1) || '')} • {(post as any).quantity || 0} kg
                         </Text>
                       </View>
-                      <Text className="text-[10px] text-[#6D7A6E]">{timeAgo(post.createdAt)}</Text>
+                      <Text className="text-[10px] text-[#64756D]">{timeAgo(post.createdAt)}</Text>
                     </View>
                     <View className="h-16 justify-between items-end ml-2">
                       <View className="bg-[#E8F8EE] px-2 py-1 rounded-md">
-                        <Text className="text-[#1E5631] text-[10px] font-semibold uppercase tracking-wider">{post.status || 'Open'}</Text>
+                        <Text className="text-[#172B2A] text-[10px] font-semibold uppercase tracking-wider">{post.status || 'Open'}</Text>
                       </View>
-                      <MaterialIcons name="chevron-right" size={20} color="#6D7A6E" />
+                      <MaterialIcons name="chevron-right" size={20} color="#64756D" />
                     </View>
                   </TouchableOpacity>
                 );
@@ -265,16 +269,16 @@ export default function ActivityScreen() {
         <View className="flex-1">
           <ScrollView
             className="flex-1 px-5"
-            contentContainerStyle={{ paddingBottom: 100, paddingTop: 8, gap: 12 }}
+            contentContainerStyle={{ paddingBottom: 160, paddingTop: 8, gap: 12 }}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#27AE60" />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#087F5B" />}
           >
             {pickupsLoading ? (
-              <ActivityIndicator size="large" color="#27AE60" style={{ marginTop: 40 }} />
+              <ActivityIndicator size="large" color="#087F5B" style={{ marginTop: 40 }} />
             ) : pickups.length === 0 ? (
               <View className="items-center justify-center mt-16">
-                <MaterialCommunityIcons name="truck-outline" size={56} color="#ECECEC" />
-                <Text className="text-[#6D7A6E] font-medium text-[16px] mt-4">No pickup requests found.</Text>
+                <MaterialCommunityIcons name="truck-outline" size={56} color="#E2ECE6" />
+                <Text className="text-[#64756D] font-medium text-[16px] mt-4">No pickup requests found.</Text>
                 <Text className="text-[#B0B0B0] text-[13px] mt-1 text-center px-6">
                   Tap "Add Pickup" below to create one from your posts.
                 </Text>
@@ -287,15 +291,15 @@ export default function ActivityScreen() {
                     key={pickup.id}
                     activeOpacity={0.8}
                     onPress={() => router.push(`/pickups/${pickup.id}`)}
-                    className="bg-white border border-[#ECECEC] rounded-[18px] p-4"
+                    className="bg-white border border-[#E2ECE6] rounded-[18px] p-4"
                     style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 }}
                   >
                     <View className="flex-row justify-between items-center mb-3">
                       <View className="flex-row items-center">
                         <View className="w-9 h-9 bg-[#E8F8EE] rounded-full items-center justify-center mr-3">
-                          <MaterialCommunityIcons name="truck-delivery-outline" size={18} color="#1E5631" />
+                          <MaterialCommunityIcons name="truck-delivery-outline" size={18} color="#172B2A" />
                         </View>
-                        <Text className="font-semibold text-[15px] text-[#1b1c1c]">
+                        <Text className="font-semibold text-[15px] text-[#172B2A]">
                           Pickup #{pickup.id}
                         </Text>
                       </View>
@@ -308,12 +312,12 @@ export default function ActivityScreen() {
 
                     <View className="flex-row items-center mb-1.5">
                       <Feather name="package" size={13} color="#8A8F87" />
-                      <Text className="text-[13px] text-[#6D7A6E] ml-2">Post #{pickup.post_id}</Text>
+                      <Text className="text-[13px] text-[#64756D] ml-2">Post #{pickup.post_id}</Text>
                     </View>
 
                     <View className="flex-row items-center mb-1.5">
                       <Feather name="calendar" size={13} color="#8A8F87" />
-                      <Text className="text-[13px] text-[#6D7A6E] ml-2">
+                      <Text className="text-[13px] text-[#64756D] ml-2">
                         {pickup.scheduled_date
                           ? new Date(pickup.scheduled_date).toLocaleDateString()
                           : 'Not scheduled yet'}
@@ -324,7 +328,7 @@ export default function ActivityScreen() {
                     {pickup.collector_id && (
                       <View className="flex-row items-center mt-2 pt-2 border-t border-[#F0F0F0]">
                         <Feather name="user" size={13} color="#8A8F87" />
-                        <Text className="text-[13px] text-[#6D7A6E] ml-2">Collector assigned</Text>
+                        <Text className="text-[13px] text-[#64756D] ml-2">Collector assigned</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -338,8 +342,8 @@ export default function ActivityScreen() {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleAddPickup}
-              className="w-full bg-[#1E5631] h-[54px] rounded-full flex-row items-center justify-center"
-              style={{ shadowColor: '#1E5631', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }}
+              className="w-full bg-[#172B2A] h-[54px] rounded-full flex-row items-center justify-center"
+              style={{ shadowColor: '#172B2A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 }}
             >
               <Feather name="plus" size={20} color="white" />
               <Text className="text-white text-[16px] font-bold ml-2">Add Pickup</Text>
@@ -353,22 +357,22 @@ export default function ActivityScreen() {
         <View className="flex-1 justify-end bg-black/40">
           <View className="bg-white rounded-t-[32px] px-5 pt-6 pb-10" style={{ maxHeight: '75%' }}>
             <View className="flex-row justify-between items-center mb-5">
-              <Text className="text-[20px] font-bold text-[#1b1c1c]">Select a Post</Text>
+              <Text className="text-[20px] font-bold text-[#172B2A]">Select a Post</Text>
               <TouchableOpacity onPress={() => setShowPostModal(false)} className="w-8 h-8 items-center justify-center bg-[#F4F4F4] rounded-full">
-                <Feather name="x" size={18} color="#1b1c1c" />
+                <Feather name="x" size={18} color="#172B2A" />
               </TouchableOpacity>
             </View>
 
-            <Text className="text-[14px] text-[#6D7A6E] mb-5">
+            <Text className="text-[14px] text-[#64756D] mb-5">
               Choose one of your open posts to view or manage its pickup request.
             </Text>
 
             {openPostsLoading ? (
-              <ActivityIndicator size="large" color="#27AE60" style={{ marginVertical: 40 }} />
+              <ActivityIndicator size="large" color="#087F5B" style={{ marginVertical: 40 }} />
             ) : openPosts.length === 0 ? (
               <View className="items-center py-10">
-                <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#ECECEC" />
-                <Text className="text-[#6D7A6E] mt-3 text-center">No open posts found.</Text>
+                <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#E2ECE6" />
+                <Text className="text-[#64756D] mt-3 text-center">No open posts found.</Text>
                 <Text className="text-[#B0B0B0] text-[12px] mt-1 text-center">Create a post first to request a pickup.</Text>
               </View>
             ) : (
@@ -386,19 +390,19 @@ export default function ActivityScreen() {
                     <TouchableOpacity
                       activeOpacity={0.8}
                       onPress={() => handleSelectPost(item)}
-                      className="flex-row items-center bg-[#F9F9F9] border border-[#ECECEC] rounded-[16px] p-3"
+                      className="flex-row items-center bg-[#F6FAF7] border border-[#E2ECE6] rounded-[16px] p-3"
                     >
                       <Image source={{ uri: rawUrl }} className="w-14 h-14 rounded-[10px] bg-[#EAEAEA]" resizeMode="cover" />
                       <View className="flex-1 ml-3">
-                        <Text className="font-semibold text-[14px] text-[#1b1c1c] mb-0.5" numberOfLines={1}>
+                        <Text className="font-semibold text-[14px] text-[#172B2A] mb-0.5" numberOfLines={1}>
                           {(item as any).title || 'Untitled Listing'}
                         </Text>
-                        <Text className="text-[12px] text-[#6D7A6E]">
+                        <Text className="text-[12px] text-[#64756D]">
                           {item.category} · {(item as any).quantity || 0} kg
                         </Text>
                       </View>
                       <View className="w-8 h-8 bg-[#E8F8EE] rounded-full items-center justify-center">
-                        <Feather name="arrow-right" size={16} color="#1E5631" />
+                        <Feather name="arrow-right" size={16} color="#172B2A" />
                       </View>
                     </TouchableOpacity>
                   );

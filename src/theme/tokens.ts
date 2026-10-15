@@ -1,34 +1,49 @@
 /**
- * Wasto Design System Tokens
- *
- * Single source of truth for all design values.
- * Never use hardcoded colors, spacing, or typography outside this file.
+ * Wastoo Design System Tokens
+ * Friendly Eco-Tech identity
  */
 
-// ============================================
-// COLORS
-// ============================================
-
 export const colors = {
-  // Canvas & Neutrals (white-dominant)
   canvas: {
-    primary: '#FFFFFF',      // Main background
-    secondary: '#FAFAFA',    // Subtle background variation
-    tertiary: '#F9F9F9',     // Input backgrounds, cards
+    primary: '#FFFFFF',
+    secondary: '#F6FAF7',
+    tertiary: '#FFFFFF',
   },
-
-  // Eco Green (primary brand, gradients, actions)
-  green: {
-    50: '#E8F8EE',           // Lightest tint (backgrounds, badges)
-    100: '#D1F2DD',
-    200: '#A3E5BB',
-    300: '#75D899',
-    400: '#4ADE80',          // FAB, bright accents
-    500: '#27AE60',          // Primary green (gradient start)
-    600: '#2ECC71',          // Primary green (gradient end)
-    700: '#1E5631',          // Dark green (headers, text)
-    800: '#164428',
-    900: '#0E2B1A',
+  emerald: {
+    50: '#E6F4EE',
+    100: '#CDE9DF',
+    200: '#9BD3BF',
+    300: '#69BE9F',
+    400: '#37A880',
+    500: '#087F5B',
+    600: '#077150',
+    700: '#056244',
+    800: '#045439',
+    900: '#03462D',
+  },
+  mint: {
+    50: '#ECFDF7',
+    100: '#D8F9EE',
+    200: '#B1F4DC',
+    300: '#8BEFCB',
+    400: '#64EABA',
+    500: '#42D6B0',
+    600: '#3BC49E',
+    700: '#32A78B',
+    800: '#2A8978',
+    900: '#226B65',
+  },
+  forest: {
+    50: '#E9EEEC',
+    100: '#D2DCDA',
+    200: '#A5B9B5',
+    300: '#789590',
+    400: '#4B726B',
+    500: '#172B2A',
+    600: '#142625',
+    700: '#112020',
+    800: '#0D1B1B',
+    900: '#0A1616',
   },
 
   // Sunburst Gold (ONLY for money, rewards, earnings)
@@ -113,9 +128,9 @@ export const colors = {
 // ============================================
 
 export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
+  xs: 6,
+  sm: 10,
+  md: 14,
   lg: 16,
   xl: 24,
   '2xl': 32,
@@ -130,13 +145,13 @@ export const spacing = {
 // ============================================
 
 export const radius = {
-  xs: 4,
-  sm: 8,
-  md: 12,
+  xs: 6,
+  sm: 10,
+  md: 14,
   lg: 16,
   xl: 20,
   '2xl': 24,
-  '3xl': 32,
+  '3xl': 28,
   full: 9999,
 } as const;
 
@@ -147,10 +162,10 @@ export const radius = {
 export const typography = {
   // Font Family
   fontFamily: {
-    regular: 'Poppins-Regular',
-    medium: 'Poppins-Medium',
-    semiBold: 'Poppins-SemiBold',
-    bold: 'Poppins-Bold',
+    regular: 'PlusJakartaSans_400Regular',
+    medium: 'PlusJakartaSans_500Medium',
+    semiBold: 'PlusJakartaSans_600SemiBold',
+    bold: 'PlusJakartaSans_700Bold',
   },
 
   // Font Sizes (with line heights)
@@ -251,8 +266,15 @@ export const componentSizes = {
 
 export const gradients = {
   // Primary eco-green gradient
-  greenPrimary: {
-    colors: [colors.green[500], colors.green[600]],
+  emeraldPrimary: {
+    colors: [colors.emerald[500], colors.emerald[600]],
+    start: { x: 0, y: 0 },
+    end: { x: 1, y: 0 },
+  },
+
+  // Mint accent gradient
+  mintAccent: {
+    colors: [colors.mint[400], colors.mint[500]],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 0 },
   },
@@ -266,7 +288,7 @@ export const gradients = {
 
   // Disabled state gradient
   disabled: {
-    colors: ['#8DE3A6', '#8DE3A6'],
+    colors: ['#9CA3AF', '#9CA3AF'],
     start: { x: 0, y: 0 },
     end: { x: 1, y: 0 },
   },

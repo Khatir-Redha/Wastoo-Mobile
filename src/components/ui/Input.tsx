@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     marginBottom: theme.spacing.sm,
     marginLeft: theme.spacing.xs,
   },
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   inputContainerFocused: {
-    borderColor: theme.colors.green[600],
+    borderColor: theme.colors.emerald[600],
     backgroundColor: theme.colors.canvas.primary,
   },
   inputContainerError: {

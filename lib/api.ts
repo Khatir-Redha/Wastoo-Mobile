@@ -7,7 +7,7 @@ import Constants from "expo-constants";
 
 // Dynamically get the IP address of the machine running the Expo bundler
 const hostUri = Constants.expoConfig?.hostUri;
-const localIP = hostUri ? hostUri.split(":")[0] : "192.168.88.116";
+const localIP = hostUri ? hostUri.split(":")[0] : "192.168.113.116";
 
 // Determine the API URL based on the environment
 let resolvedApiUrl = `http://${localIP}:5000`;

@@ -1,276 +1,241 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
-import { Image } from "expo-image";
-import { useRouter } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import PostService, { Post } from "../../../../services/post.service";
-import NotificationBell from "../../../components/NotificationBell";
+﻿import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import PostService, { Post } from '../../../../services/post.service';
+import NotificationBell from '../../../components/NotificationBell';
+import { useAuth } from '../../../../context/AuthProvider';
+import { theme } from '../../../theme/tokens';
+import { Button, Card, Input } from '../../../components/ui';
 
-// --- Category Data ---
 const CATEGORIES = [
-  { id: "all", name: "All", icon: "view-grid" },
-  { id: "plastic", name: "Plastic", icon: "recycle" },
-  { id: "organic", name: "Organic", icon: "leaf" },
-  { id: "glass", name: "Glass", icon: "bottle-wine-outline" },
-  { id: "metal", name: "Metal", icon: "cube-scan" },
+  { id: 'all', name: 'All', icon: 'view-grid' },
+  { id: 'plastic', name: 'Plastic', icon: 'recycle' },
+  { id: 'organic', name: 'Organic', icon: 'leaf' },
+  { id: 'glass', name: 'Glass', icon: 'bottle-wine-outline' },
+  { id: 'metal', name: 'Metal', icon: 'cube-scan' },
 ];
 
-// Helper to get the correct icon based on category string
 const getCategoryIcon = (categoryId?: string) => {
   const cat = CATEGORIES.find((c) => c.id === categoryId?.toLowerCase());
-  return cat ? cat.icon : "package-variant-closed";
+  return cat ? cat.icon : 'package-variant-closed';
 };
 
 export default function BrowseScreen() {
-  const router = useRouter(); // 2. Initialize router
-  const [activeCategory, setActiveCategory] = useState("all");
+  const router = useRouter();
+  const { user } = useAuth();
+  const [activeCategory, setActiveCategory] = useState('all');
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch posts from backend whenever the active category changes
   useEffect(() => {
     const fetchPosts = async () => {
       setIsLoading(true);
       try {
-        // If 'all' is selected, don't send a category filter to the backend
-        const query =
-          activeCategory === "all" ? {} : { category: activeCategory };
-
+        const query: any = {};
+        if (activeCategory !== 'all') query.category = activeCategory;
+        if (searchTerm.trim()) query.search = searchTerm;
         const response = await PostService.getAllPosts(query);
         const postsArray = Array.isArray(response) ? response : (response?.data || []);
         setPosts(postsArray);
       } catch (error) {
-        console.error("Error fetching posts:", error);
+        console.error('Error fetching posts:', error);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchPosts();
-  }, [activeCategory]);
+  }, [activeCategory, searchTerm]);
 
-  return (
-    <View style={{ flex: 1 }}>
-    <SafeAreaView
-      className="flex-1 bg-[#FAFAFA]"
-      style={{ paddingTop: Platform.OS === "android" ? 40 : 0 }}
-    >
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header Section */}
-        <View className="px-6 pt-4 pb-5 flex-row items-center justify-between">
-          <Text className="text-[28px] font-bold text-[#1E5631] tracking-tight">
-            Browse Waste
+  const renderHeader = () => {
+    const firstName = user?.name?.split(' ')[0] || 'Friend';
+    return (
+      <View style={{ paddingHorizontal: theme.spacing.xl, paddingTop: Platform.OS === 'ios' ? 20 : 44, paddingBottom: theme.spacing.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: theme.typography.fontSize['2xl'].size, fontFamily: theme.typography.fontFamily.bold, color: theme.colors.text.primary, marginBottom: theme.spacing.xs }}>
+            Hello, {firstName}!
           </Text>
-          <NotificationBell />
+          <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary }}>
+            Find waste materials near you
+          </Text>
         </View>
+        <NotificationBell />
+      </View>
+    );
+  };
 
-        {/* Search Bar */}
-        <View className="px-6 pb-6">
-          <View
-            className="w-full h-[52px] bg-white rounded-2xl flex-row items-center px-4 border border-[#ECECEC]"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.05,
-              shadowRadius: 2,
-              elevation: 1,
-            }}
-          >
-            <Feather name="search" size={20} color="#8A8F87" />
-            <TextInput
-              placeholder="Search waste materials..."
-              placeholderTextColor="#8A8F87"
-              className="flex-1 ml-3 text-[15px] text-[#1b1c1c]"
-            />
+  const renderPrimaryAction = () => {
+    return (
+      <Card variant="elevated" style={{ marginHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg, borderRadius: theme.radius.xl }}>
+        <View style={{ padding: theme.spacing.lg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
+            <View style={{ backgroundColor: theme.colors.mint[50], padding: theme.spacing.sm, borderRadius: theme.radius.md, marginRight: theme.spacing.md }}>
+              <Feather name="refresh-cw" size={24} color={theme.colors.mint[500]} />
+            </View>
+            <Text style={{ fontSize: theme.typography.fontSize.lg.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, flex: 1 }}>
+              Make recycling easier for everyone
+            </Text>
+          </View>
+          <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
+            List your waste to help collectors and create a greener community
+          </Text>
+          <Button
+            title="List Your Waste"
+            variant="primary"
+            size="md"
+            onPress={() => router.push('/create-post')}
+            icon={<Feather name="plus" size={20} color={theme.colors.text.inverse} />}
+            iconPosition="left"
+            fullWidth
+          />
+        </View>
+      </Card>
+    );
+  };
+
+  const renderSearchBar = () => {
+    return (
+      <View style={{ marginHorizontal: theme.spacing.xl, marginBottom: theme.spacing.md }}>
+        <Input
+          placeholder="Search materials, locations..."
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          icon="search"
+        />
+      </View>
+    );
+  };
+
+  const renderCategories = () => {
+    return (
+      <View style={{ marginBottom: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
+        <Text style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginHorizontal: theme.spacing.xl, marginBottom: theme.spacing.md }}>
+          Categories
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.xl }}>
+          {CATEGORIES.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setActiveCategory(cat.id)}
+                style={{
+                  marginRight: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm,
+                  paddingHorizontal: theme.spacing.lg,
+                  borderRadius: theme.radius.md,
+                  backgroundColor: isActive ? theme.colors.emerald[500] : theme.colors.canvas.primary,
+                  borderWidth: isActive ? 0 : 1,
+                  borderColor: theme.colors.border.default,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  ...theme.shadows.sm,
+                }}
+              >
+                <MaterialCommunityIcons name={cat.icon as any} size={20} color={isActive ? theme.colors.text.inverse : theme.colors.emerald[500]} />
+                <Text style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.fontSize.md.size, color: isActive ? theme.colors.text.inverse : theme.colors.text.primary, fontFamily: theme.typography.fontFamily.medium }}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderPostCard = (post: Post) => {
+    let rawUrl = post.images?.[0]?.url?.trim();
+    if (!rawUrl) {
+      rawUrl = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+    } else if (rawUrl.includes('cloudinary.com') && rawUrl.startsWith('http://')) {
+      rawUrl = rawUrl.replace('http://', 'https://');
+    }
+    const displayImage = rawUrl;
+    const weight = (post as any).weight || 'TBD kg';
+    const isFree = (post as any).price === 0 || !(post as any).price;
+    const badgeText = isFree ? 'FREE' : '$' + (post as any).price;
+    const formattedDate = post.createdAt
+      ? new Date(post.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : 'Recent';
+
+    return (
+      <TouchableOpacity
+        key={post.id}
+        activeOpacity={0.8}
+        onPress={() => router.push('/citizen/' + post.id)}
+        style={{
+          width: '48%',
+          marginRight: '2%',
+          marginBottom: theme.spacing.md,
+          backgroundColor: theme.colors.canvas.primary,
+          borderRadius: theme.radius.xl,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: theme.colors.border.light,
+          ...theme.shadows.md,
+        }}
+      >
+        <View style={{ aspectRatio: 16/9, backgroundColor: theme.colors.canvas.tertiary }}>
+          <Image source={{ uri: displayImage }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+          <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: theme.colors.mint[500], paddingHorizontal: theme.spacing.xs, paddingVertical: theme.spacing.xs, borderRadius: theme.radius.sm }}>
+            <MaterialCommunityIcons name={getCategoryIcon(post.category) as any} size={14} color={theme.colors.text.inverse} />
+          </View>
+          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: isFree ? theme.colors.success : theme.colors.warning, paddingHorizontal: theme.spacing.xs, paddingVertical: theme.spacing.xs, borderRadius: theme.radius.sm }}>
+            <Text style={{ fontSize: theme.typography.fontSize.xs.size, color: theme.colors.text.inverse, fontFamily: theme.typography.fontFamily.medium }}> {badgeText} </Text>
           </View>
         </View>
-
-        {/* Categories ScrollView */}
-        <View className="pl-6 pb-6">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat.id;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  onPress={() => setActiveCategory(cat.id)}
-                  className="items-center mr-5"
-                  activeOpacity={0.7}
-                >
-                  <View
-                    className={`w-16 h-16 rounded-full items-center justify-center mb-2 
-                    ${isActive ? "bg-[#2ECC71]" : "bg-white border border-[#ECECEC]"}`}
-                  >
-                    <MaterialCommunityIcons
-                      name={cat.icon as any}
-                      size={28}
-                      color={isActive ? "white" : "#1E5631"}
-                    />
-                  </View>
-                  <Text
-                    className={`text-[13px] font-semibold ${isActive ? "text-[#1E5631]" : "text-[#8A8F87]"}`}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Waste Items Grid */}
-        <View className="px-6 flex-row flex-wrap justify-between">
-          {isLoading ? (
-            <View className="w-full items-center justify-center py-10">
-              <ActivityIndicator size="large" color="#2ECC71" />
-            </View>
-          ) : posts.length === 0 ? (
-            <View className="w-full items-center justify-center py-10">
-              <Text className="text-[#8A8F87] text-[15px]">
-                No items found in this category.
+        <View style={{ padding: theme.spacing.md }}>
+          <Text numberOfLines={1} style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginBottom: theme.spacing.xs }}>
+            {(post as any).title || 'Untitled Material'}
+          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Feather name="map-pin" size={12} color={theme.colors.text.quaternary} />
+              <Text style={{ marginLeft: theme.spacing.xs, fontSize: theme.typography.fontSize.sm.size, color: theme.colors.text.secondary }}>
+                {(post as any).location || 'Unknown'}
               </Text>
             </View>
-          ) : (
-            posts.map((item) => {
-              // 1. Get the URL and use .trim() to kill hidden whitespace!
-              let rawUrl = item.images?.[0]?.url?.trim();
-
-              // 2. Fallback if empty
-              if (!rawUrl) {
-                rawUrl =
-                  "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80";
-              } else if (
-                rawUrl.includes("cloudinary.com") &&
-                rawUrl.startsWith("http://")
-              ) {
-                rawUrl = rawUrl.replace("http://", "https://");
-              }
-
-              const displayImage = rawUrl;
-
-              const weight = (item as any).weight || "TBD kg";
-              const isFree = (item as any).price === 0 || !(item as any).price;
-              const badgeText = isFree ? "FREE" : `$${(item as any).price}`;
-
-              const formattedDate = item.createdAt 
-                ? new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) 
-                : "Recent";
-
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/citizen/${item.id}`)}
-                  className="w-[48%] bg-white rounded-[24px] p-2.5 mb-4 border border-[#ECECEC]"
-                  style={{
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                    elevation: 2,
-                  }}
-                >
-                  {/* Image Container - Notice we keep h-36 (144px) here */}
-                  <View className="w-full h-36 rounded-[18px] overflow-hidden mb-3 relative bg-[#F9F9F9]">
-                    {/* THE FIX: Explicit React Native numeric styles, bypassing NativeWind quirks */}
-                    <View
-                      style={{
-                        width: "100%",
-                        height: 144,
-                        backgroundColor: "gray",
-                        overflow: "hidden",
-                        borderRadius: 18,
-                        marginBottom: 12,
-                      }}
-                    >
-                      {/* Test 1: Hardcoded Unsplash URL */}
-                      <Image
-                        source={{ uri: displayImage }}
-                        style={{ width: "100%", height: 144 }}
-                        contentFit="cover"
-                      />
-                    </View>
-
-                    {/* Price/Free Badge */}
-                    <View
-                      className={`absolute top-2 right-2 px-2.5 py-1 rounded-md z-10
-                      ${isFree ? "bg-[#2ECC71]" : "bg-[#F1C40F]"}`}
-                    >
-                      <Text className="text-white text-[10px] font-bold tracking-wider">
-                        {badgeText}
-                      </Text>
-                    </View>
-
-                    {/* Category Icon Badge */}
-                    <View className="absolute bottom-2 left-2 w-8 h-8 bg-white rounded-full items-center justify-center shadow-sm z-10">
-                      <MaterialCommunityIcons
-                        name={getCategoryIcon(item.category) as any}
-                        size={16}
-                        color="#1E5631"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Text Info */}
-                  <View className="px-1 pb-1">
-                    <Text
-                      className="text-[14px] font-semibold text-[#1b1c1c] mb-1.5"
-                      numberOfLines={1}
-                    >
-                      {(item as any).title || "Untitled Material"}
-                    </Text>
-                    <View className="flex-row justify-between items-center">
-                      <Text className="text-[12px] text-[#3d4a3f] font-medium">
-                        {weight}
-                      </Text>
-                      <Text className="text-[11px] text-[#8A8F87]">
-                        {formattedDate}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
+            <Text style={{ fontSize: theme.typography.fontSize.sm.size, color: theme.colors.text.tertiary }}>
+              {formattedDate}
+            </Text>
+          </View>
         </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.secondary }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+        {renderHeader()}
+        {renderPrimaryAction()}
+        {renderSearchBar()}
+        {renderCategories()}
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
+          </View>
+        ) : posts.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+            <View style={{ alignItems: 'center', paddingHorizontal: theme.spacing.xl }}>
+              <Feather name="refresh-cw" size={64} color={theme.colors.mint[500]} />
+              <Text style={{ fontSize: theme.typography.fontSize.lg.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginTop: theme.spacing.lg, textAlign: 'center' }}>
+                No materials found
+              </Text>
+              <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, marginTop: theme.spacing.sm, textAlign: 'center' }}>
+                Try changing categories or search for something else
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: theme.spacing.lg, flexDirection: 'row', flexWrap: 'wrap' }}>
+            {posts.map(renderPostCard)}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
-
-      {/* FAB */}
-      <TouchableOpacity
-        activeOpacity={0.8}
-        style={{
-          position: 'absolute',
-          bottom: (Platform.OS === 'ios' ? 85 : 65) + 16,
-          right: 24,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: '#4ADE80',
-          alignItems: 'center',
-          justifyContent: 'center',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
-          elevation: 5,
-        }}
-        onPress={() => router.push('/create-post')}
-      >
-        <Feather name="plus" size={30} color="white" />
-      </TouchableOpacity>
-    </View>
   );
 }

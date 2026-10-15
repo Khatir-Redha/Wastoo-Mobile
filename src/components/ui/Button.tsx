@@ -114,7 +114,7 @@ export default function Button({
           useGradient: true,
           gradientColors: isDisabled
             ? theme.gradients.disabled.colors
-            : theme.gradients.greenPrimary.colors,
+            : theme.gradients.emeraldPrimary.colors,
           textColor: theme.colors.text.inverse,
           shadow: theme.shadows.md,
         };
@@ -126,11 +126,11 @@ export default function Button({
             : theme.colors.canvas.primary,
           borderColor: isDisabled
             ? theme.colors.border.default
-            : theme.colors.green[700],
+            : theme.colors.emerald[700],
           borderWidth: 2,
           textColor: isDisabled
             ? theme.colors.text.disabled
-            : theme.colors.green[700],
+            : theme.colors.emerald[700],
           shadow: theme.shadows.sm,
         };
       case 'ghost':
@@ -139,7 +139,7 @@ export default function Button({
           backgroundColor: 'transparent',
           textColor: isDisabled
             ? theme.colors.text.disabled
-            : theme.colors.green[700],
+            : theme.colors.emerald[700],
           shadow: undefined,
         };
       case 'danger':
@@ -154,7 +154,7 @@ export default function Button({
       default:
         return {
           useGradient: true,
-          gradientColors: theme.gradients.greenPrimary.colors,
+          gradientColors: theme.gradients.emeraldPrimary.colors,
           textColor: theme.colors.text.inverse,
           shadow: theme.shadows.md,
         };

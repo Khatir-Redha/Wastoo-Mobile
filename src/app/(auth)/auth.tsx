@@ -275,7 +275,7 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
             <FontAwesome5
               name="leaf"
               size={15}
-              color={selectedRole === "CITIZEN" ? theme.colors.green[600] : theme.colors.text.tertiary}
+              color={selectedRole === "CITIZEN" ? theme.colors.emerald[600] : theme.colors.text.tertiary}
             />
             <Text style={[
               styles.roleButtonText,
@@ -295,7 +295,7 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
             <FontAwesome5
               name="truck"
               size={14}
-              color={selectedRole === "COLLECTOR" ? theme.colors.green[600] : theme.colors.text.tertiary}
+              color={selectedRole === "COLLECTOR" ? theme.colors.emerald[600] : theme.colors.text.tertiary}
             />
             <Text style={[
               styles.roleButtonText,
@@ -315,7 +315,7 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
             <FontAwesome5
               name="industry"
               size={15}
-              color={selectedRole === "RECYCLING_CENTER" ? theme.colors.green[600] : theme.colors.text.tertiary}
+              color={selectedRole === "RECYCLING_CENTER" ? theme.colors.emerald[600] : theme.colors.text.tertiary}
             />
             <Text style={[
               styles.roleButtonText,
@@ -399,7 +399,7 @@ export default function AuthScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.green[500]} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.emerald[500]} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -408,7 +408,7 @@ export default function AuthScreen() {
 
         {/* Header with Gradient & Leaf Animation */}
         <LinearGradient
-          colors={[theme.colors.green[500], theme.colors.green[600]]}
+          colors={[theme.colors.emerald[500], theme.colors.emerald[600]]}
           style={styles.header}
         >
           <View style={styles.leafContainer}>
@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.base.size,
   },
   segmentTextActive: {
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   segmentTextInactive: {
@@ -634,8 +634,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxActive: {
-    backgroundColor: theme.colors.green[600],
-    borderColor: theme.colors.green[600],
+    backgroundColor: theme.colors.emerald[600],
+    borderColor: theme.colors.emerald[600],
   },
   rememberMeText: {
     fontSize: theme.typography.fontSize.sm.size,
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
   },
   submitButton: {
     marginTop: theme.spacing.sm,
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   roleLabel: {
     fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     marginBottom: theme.spacing.sm,
     marginLeft: theme.spacing.xs,
   },
@@ -691,8 +691,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   roleButtonActive: {
-    borderColor: theme.colors.green[600],
-    backgroundColor: theme.colors.green[50],
+    borderColor: theme.colors.emerald[600],
+    backgroundColor: theme.colors.emerald[50],
   },
   roleButtonText: {
     fontSize: theme.typography.fontSize.sm.size,
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   roleButtonTextActive: {
-    color: theme.colors.green[600],
+    color: theme.colors.emerald[600],
   },
   termsContainer: {
     flexDirection: 'row',
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   termsLink: {
-    color: theme.colors.green[600],
+    color: theme.colors.emerald[600],
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   divider: {

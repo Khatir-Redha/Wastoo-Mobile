@@ -144,7 +144,7 @@ export default function PickupDetailsScreen() {
 
           <View style={styles.infoRow}>
             <View style={styles.iconBadge}>
-              <Feather name="calendar" size={18} color={theme.colors.green[700]} />
+              <Feather name="calendar" size={18} color={theme.colors.emerald[700]} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Scheduled Time</Text>
@@ -157,7 +157,7 @@ export default function PickupDetailsScreen() {
 
           <View style={styles.infoRow}>
             <View style={styles.iconBadge}>
-              <Feather name="map-pin" size={18} color={theme.colors.green[700]} />
+              <Feather name="map-pin" size={18} color={theme.colors.emerald[700]} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Pickup Address</Text>
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   sectionLabel: {
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     fontSize: theme.typography.fontSize.xs.size,
     fontFamily: theme.typography.fontFamily.bold,
     letterSpacing: 1,

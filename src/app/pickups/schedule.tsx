@@ -93,7 +93,7 @@ export default function SchedulePickupScreen() {
           variant="secondary"
           size="lg"
           onPress={() => setShowDatePicker(true)}
-          icon={<Feather name="calendar" size={20} color={theme.colors.green[600]} />}
+          icon={<Feather name="calendar" size={20} color={theme.colors.emerald[600]} />}
           iconPosition="left"
           hapticFeedback={false}
           style={styles.pickerButton}
@@ -117,7 +117,7 @@ export default function SchedulePickupScreen() {
           variant="secondary"
           size="lg"
           onPress={() => setShowTimePicker(true)}
-          icon={<Feather name="clock" size={20} color={theme.colors.green[600]} />}
+          icon={<Feather name="clock" size={20} color={theme.colors.emerald[600]} />}
           iconPosition="left"
           hapticFeedback={false}
           style={styles.pickerButton}
@@ -135,7 +135,7 @@ export default function SchedulePickupScreen() {
         {/* Info Card */}
         <Card variant="flat" padding="md" style={styles.infoCard}>
           <View style={styles.infoCardContent}>
-            <Feather name="info" size={20} color={theme.colors.green[700]} style={styles.infoIcon} />
+            <Feather name="info" size={20} color={theme.colors.emerald[700]} style={styles.infoIcon} />
             <Text style={styles.infoText}>
               The collection window will be automatically set to 2 hours from your start time.
             </Text>
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.md,
     fontSize: theme.typography.fontSize.base.size,
     fontFamily: theme.typography.fontFamily.regular,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     lineHeight: 20,
   },
   footer: {

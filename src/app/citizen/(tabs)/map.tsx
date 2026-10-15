@@ -112,7 +112,7 @@ export default function MapScreen() {
   if (!location) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#006d37" />
+        <ActivityIndicator size="large" color="#087F5B" />
         <Text style={styles.loadingText}>Loading location...</Text>
       </View>
     );

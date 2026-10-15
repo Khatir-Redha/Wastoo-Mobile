@@ -4,6 +4,7 @@ import { MaterialIcons, Feather } from "@expo/vector-icons";
 import { useAuth } from "../../../../context/AuthProvider";
 import { Button, Card } from "../../../components/ui";
 import { theme } from "../../../theme/tokens";
+import NotificationBell from "../../../components/NotificationBell";
 
 export default function ProfileScreen() {
   const { logout, user } = useAuth();
@@ -51,8 +52,9 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <Text style={styles.headerTitle}>Profile</Text>
+          <NotificationBell />
         </View>
 
         {/* User Info Card */}
@@ -61,7 +63,7 @@ export default function ProfileScreen() {
             <MaterialIcons
               name="person"
               size={40}
-              color={theme.colors.green[700]}
+              color={theme.colors.emerald[700]}
             />
           </View>
           <Text style={styles.userName}>{user?.name || "User"}</Text>
@@ -108,7 +110,7 @@ export default function ProfileScreen() {
                   <MaterialIcons
                     name={item.icon as any}
                     size={24}
-                    color={theme.colors.green[700]}
+                    color={theme.colors.emerald[700]}
                   />
                 </View>
                 <View style={styles.menuTextContainer}>
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: theme.typography.fontSize['3xl'].size,
     fontFamily: theme.typography.fontFamily.bold,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
   },
   userCard: {
     marginHorizontal: theme.spacing.xl,
@@ -220,7 +222,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: theme.typography.fontSize['2xl'].size,
     fontFamily: theme.typography.fontFamily.bold,
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
     marginBottom: theme.spacing.xs,
   },
   statLabel: {

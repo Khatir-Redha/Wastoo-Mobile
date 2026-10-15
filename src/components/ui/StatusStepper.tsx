@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     top: theme.spacing['2xl'],
     left: theme.spacing['3xl'],
     height: 4,
-    backgroundColor: theme.colors.green[600],
+    backgroundColor: theme.colors.emerald[600],
     zIndex: 1,
   },
   stepContainer: {
@@ -119,14 +119,14 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   stepCircleActive: {
-    backgroundColor: theme.colors.green[600],
+    backgroundColor: theme.colors.emerald[600],
   },
   stepCircleInactive: {
     backgroundColor: theme.colors.border.default,
   },
   stepCircleCurrent: {
     borderWidth: 3,
-    borderColor: theme.colors.green[200],
+    borderColor: theme.colors.emerald[200],
   },
   stepLabel: {
     fontSize: theme.typography.fontSize.xs.size,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   stepLabelActive: {
-    color: theme.colors.green[700],
+    color: theme.colors.emerald[700],
   },
   stepLabelInactive: {
     color: theme.colors.text.disabled,

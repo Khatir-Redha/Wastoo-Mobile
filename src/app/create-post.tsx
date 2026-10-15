@@ -143,16 +143,16 @@ export default function CreatePostScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FAFAFA]" style={{ paddingTop: Platform.OS === "android" ? 40 : 0 }}>
+    <SafeAreaView className="flex-1 bg-[#F6FAF7]" style={{ paddingTop: Platform.OS === "android" ? 40 : 0 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <View className="flex-row items-center px-4 py-3 border-b border-[#ECECEC] bg-white">
+        <View className="flex-row items-center px-4 py-3 border-b border-[#E2ECE6] bg-white">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-            <MaterialIcons name="arrow-back" size={24} color="#006d37" />
+            <MaterialIcons name="arrow-back" size={24} color="#087F5B" />
           </TouchableOpacity>
-          <Text className="text-[22px] font-bold text-[#006d37] ml-2 tracking-tight">
+          <Text className="text-[22px] font-bold text-[#087F5B] ml-2 tracking-tight">
             List Your Waste
           </Text>
         </View>
@@ -163,7 +163,7 @@ export default function CreatePostScreen() {
           className="flex-1 px-4 pt-4"
         >
           <View className="mb-6">
-            <Text className="text-[18px] font-semibold text-[#1b1c1c] mb-3">
+            <Text className="text-[18px] font-semibold text-[#172B2A] mb-3">
               Visuals
             </Text>
 
@@ -198,7 +198,7 @@ export default function CreatePostScreen() {
                 <View className="bg-white p-3 rounded-full mb-2 shadow-sm">
                   <MaterialIcons name="photo-camera" size={24} color="#27ae60" />
                 </View>
-                <Text className="text-[13px] font-medium text-[#006d37]">Take Photo</Text>
+                <Text className="text-[13px] font-medium text-[#087F5B]">Take Photo</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -210,30 +210,30 @@ export default function CreatePostScreen() {
                 <View className="bg-white p-3 rounded-full mb-2 shadow-sm">
                   <MaterialIcons name="photo-library" size={24} color="#27ae60" />
                 </View>
-                <Text className="text-[13px] font-medium text-[#006d37]">From Gallery</Text>
+                <Text className="text-[13px] font-medium text-[#087F5B]">From Gallery</Text>
               </TouchableOpacity>
             </View>
 
             {isUploading && (
               <View className="flex-row items-center justify-center mt-3">
                 <ActivityIndicator size="small" color="#27ae60" />
-                <Text className="text-[12px] text-[#8A8F87] ml-2">Uploading...</Text>
+                <Text className="text-[12px] text-[#64756D] ml-2">Uploading...</Text>
               </View>
             )}
           </View>
 
           <View className="mb-6">
             <View className="flex-row justify-between items-end mb-3">
-              <Text className="text-[18px] font-semibold text-[#1b1c1c]">Title</Text>
+              <Text className="text-[18px] font-semibold text-[#172B2A]">Title</Text>
               <View className="bg-[#e8f5e9] px-2 py-0.5 rounded">
-                <Text className="text-[11px] font-medium text-[#006d37]">Required</Text>
+                <Text className="text-[11px] font-medium text-[#087F5B]">Required</Text>
               </View>
             </View>
-            <View className="bg-white rounded-[16px] p-3 border border-[#ECECEC]">
+            <View className="bg-white rounded-[16px] p-3 border border-[#E2ECE6]">
               <TextInput
-                className="text-[15px] text-[#1b1c1c]"
+                className="text-[15px] text-[#172B2A]"
                 placeholder="e.g. Clean PET bottles, 5kg"
-                placeholderTextColor="#8A8F87"
+                placeholderTextColor="#64756D"
                 value={title}
                 onChangeText={setTitle}
               />
@@ -241,14 +241,14 @@ export default function CreatePostScreen() {
           </View>
 
           <View className="mb-6">
-            <Text className="text-[18px] font-semibold text-[#1b1c1c] mb-3">
+            <Text className="text-[18px] font-semibold text-[#172B2A] mb-3">
               Description
             </Text>
-            <View className="bg-white rounded-[16px] p-3 border border-[#ECECEC]">
+            <View className="bg-white rounded-[16px] p-3 border border-[#E2ECE6]">
               <TextInput
-                className="text-[15px] text-[#1b1c1c]"
+                className="text-[15px] text-[#172B2A]"
                 placeholder="Add any extra details (optional)"
-                placeholderTextColor="#8A8F87"
+                placeholderTextColor="#64756D"
                 multiline
                 numberOfLines={3}
                 style={{ minHeight: 72, textAlignVertical: "top" }}
@@ -260,9 +260,9 @@ export default function CreatePostScreen() {
 
           <View className="mb-6">
             <View className="flex-row justify-between items-end mb-3">
-              <Text className="text-[18px] font-semibold text-[#1b1c1c]">Material Type</Text>
+              <Text className="text-[18px] font-semibold text-[#172B2A]">Material Type</Text>
               <View className="bg-[#e8f5e9] px-2 py-0.5 rounded">
-                <Text className="text-[11px] font-medium text-[#006d37]">Required</Text>
+                <Text className="text-[11px] font-medium text-[#087F5B]">Required</Text>
               </View>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
@@ -277,15 +277,15 @@ export default function CreatePostScreen() {
                     >
                       <View
                         className={`w-[60px] h-[60px] rounded-[18px] items-center justify-center mb-1 border
-                        ${isSelected ? "bg-[#f0f9f4] border-[#27ae60]" : "bg-white border-[#ECECEC]"}`}
+                        ${isSelected ? "bg-[#f0f9f4] border-[#27ae60]" : "bg-white border-[#E2ECE6]"}`}
                       >
                         <MaterialCommunityIcons
                           name={cat.icon as any}
                           size={28}
-                          color={isSelected ? "#006d37" : "#3d4a3f"}
+                          color={isSelected ? "#087F5B" : "#3d4a3f"}
                         />
                       </View>
-                      <Text className={`text-[12px] ${isSelected ? "text-[#006d37] font-semibold" : "text-[#3d4a3f]"}`}>
+                      <Text className={`text-[12px] ${isSelected ? "text-[#087F5B] font-semibold" : "text-[#3d4a3f]"}`}>
                         {cat.name}
                       </Text>
                     </TouchableOpacity>
@@ -295,14 +295,14 @@ export default function CreatePostScreen() {
             </ScrollView>
           </View>
 
-          <View className="mb-6 bg-white p-4 rounded-[20px] border border-[#ECECEC]">
+          <View className="mb-6 bg-white p-4 rounded-[20px] border border-[#E2ECE6]">
             <View className="items-center mb-2">
-              <Text className="text-[11px] text-[#8A8F87] uppercase font-bold tracking-wider mb-1">
+              <Text className="text-[11px] text-[#64756D] uppercase font-bold tracking-wider mb-1">
                 Estimated Weight
               </Text>
               <View className="flex-row items-baseline">
-                <Text className="text-[28px] font-bold text-[#006d37]">{weight.toFixed(1)}</Text>
-                <Text className="text-[16px] text-[#8A8F87] ml-1">kg</Text>
+                <Text className="text-[28px] font-bold text-[#087F5B]">{weight.toFixed(1)}</Text>
+                <Text className="text-[16px] text-[#64756D] ml-1">kg</Text>
               </View>
             </View>
             <Slider
@@ -313,20 +313,20 @@ export default function CreatePostScreen() {
               value={weight}
               onValueChange={setWeight}
               minimumTrackTintColor="#27ae60"
-              maximumTrackTintColor="#ECECEC"
+              maximumTrackTintColor="#E2ECE6"
               thumbTintColor="#ffffff"
             />
             <View className="flex-row justify-between px-1">
-              <Text className="text-[11px] text-[#8A8F87]">0.5 kg</Text>
-              <Text className="text-[11px] text-[#8A8F87]">10+ kg</Text>
+              <Text className="text-[11px] text-[#64756D]">0.5 kg</Text>
+              <Text className="text-[11px] text-[#64756D]">10+ kg</Text>
             </View>
           </View>
 
           <View className="mb-6">
-            <Text className="text-[18px] font-semibold text-[#1b1c1c] mb-3">
+            <Text className="text-[18px] font-semibold text-[#172B2A] mb-3">
               Listing Type
             </Text>
-            <View className="flex-row bg-[#ECECEC] p-1 rounded-full h-12 mb-3">
+            <View className="flex-row bg-[#E2ECE6] p-1 rounded-full h-12 mb-3">
               <TouchableOpacity
                 onPress={() => setIsSelling(false)}
                 className={`flex-1 flex-row items-center justify-center rounded-full ${!isSelling ? "bg-white" : ""}`}
@@ -345,10 +345,10 @@ export default function CreatePostScreen() {
                 <MaterialIcons
                   name="volunteer-activism"
                   size={18}
-                  color={!isSelling ? "#006d37" : "#8A8F87"}
+                  color={!isSelling ? "#087F5B" : "#64756D"}
                 />
                 <Text
-                  className={`ml-2 text-[14px] ${!isSelling ? "text-[#006d37] font-semibold" : "text-[#8A8F87] font-medium"}`}
+                  className={`ml-2 text-[14px] ${!isSelling ? "text-[#087F5B] font-semibold" : "text-[#64756D] font-medium"}`}
                 >
                   Giveaway
                 </Text>
@@ -372,10 +372,10 @@ export default function CreatePostScreen() {
                 <MaterialIcons
                   name="payments"
                   size={18}
-                  color={isSelling ? "#006d37" : "#8A8F87"}
+                  color={isSelling ? "#087F5B" : "#64756D"}
                 />
                 <Text
-                  className={`ml-2 text-[14px] ${isSelling ? "text-[#006d37] font-semibold" : "text-[#8A8F87] font-medium"}`}
+                  className={`ml-2 text-[14px] ${isSelling ? "text-[#087F5B] font-semibold" : "text-[#64756D] font-medium"}`}
                 >
                   Sell for Cash
                 </Text>
@@ -383,20 +383,20 @@ export default function CreatePostScreen() {
             </View>
 
             {isSelling && (
-              <View className="bg-white rounded-[16px] p-4 border border-[#ECECEC]">
+              <View className="bg-white rounded-[16px] p-4 border border-[#E2ECE6]">
                 <Text className="text-[12px] text-[#3d4a3f] mb-2">Asking Price</Text>
-                <View className="flex-row items-center border border-[#ECECEC] rounded-[12px] bg-[#FAFAFA] h-12 px-3">
+                <View className="flex-row items-center border border-[#E2ECE6] rounded-[12px] bg-[#F6FAF7] h-12 px-3">
                   <Text className="text-[18px] text-[#3d4a3f] font-semibold">$</Text>
                   <TextInput
-                    className="flex-1 text-[18px] font-semibold text-[#006d37] ml-2 h-full"
+                    className="flex-1 text-[18px] font-semibold text-[#087F5B] ml-2 h-full"
                     placeholder="0.00"
-                    placeholderTextColor="#8A8F87"
+                    placeholderTextColor="#64756D"
                     keyboardType="numeric"
                     value={price}
                     onChangeText={setPrice}
                   />
-                  <View className="border-l border-[#ECECEC] pl-3 py-1">
-                    <Text className="text-[14px] text-[#8A8F87]">/ton</Text>
+                  <View className="border-l border-[#E2ECE6] pl-3 py-1">
+                    <Text className="text-[14px] text-[#64756D]">/ton</Text>
                   </View>
                 </View>
               </View>
@@ -412,14 +412,14 @@ export default function CreatePostScreen() {
         </ScrollView>
 
         <View
-          className="absolute bottom-0 w-full bg-white px-4 py-4 border-t border-[#ECECEC]"
+          className="absolute bottom-0 w-full bg-white px-4 py-4 border-t border-[#E2ECE6]"
           style={{ paddingBottom: Platform.OS === "ios" ? 34 : 16 }}
         >
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={handlePublish}
             disabled={isPublishing || isUploading}
-            className="w-full bg-[#006d37] rounded-full h-14 flex-row justify-center items-center shadow-sm"
+            className="w-full bg-[#087F5B] rounded-full h-14 flex-row justify-center items-center shadow-sm"
           >
             {isPublishing ? (
               <ActivityIndicator color="white" />
