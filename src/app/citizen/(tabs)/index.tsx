@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import PostService, { Post } from '../../../../services/post.service';
 import NotificationBell from '../../../components/NotificationBell';
+import BadgesButton from '../../../components/BadgesButton';
 import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
 import { Button, Card, Input } from '../../../components/ui';
@@ -61,7 +62,10 @@ export default function BrowseScreen() {
             Find waste materials near you
           </Text>
         </View>
-        <NotificationBell />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <BadgesButton />
+          <NotificationBell />
+        </View>
       </View>
     );
   };

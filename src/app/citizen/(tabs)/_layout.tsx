@@ -85,11 +85,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="map"
+        name="posts"
         options={{
-          title: "Map",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="map" size={22} color={color} />
+          title: "Posts",
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="post-outline" size={24} color={color} />
           ),
         }}
       />

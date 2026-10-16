@@ -17,6 +17,7 @@ import { MaterialIcons, MaterialCommunityIcons, Feather } from '@expo/vector-ico
 import PostService, { Post } from "../../../../services/post.service";
 import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
 import NotificationBell from '../../../components/NotificationBell';
+import BadgesButton from '../../../components/BadgesButton';
 
 // Helper: icon per category
 const getCategoryIcon = (category: string) => {
@@ -160,7 +161,10 @@ export default function ActivityScreen() {
       <View className="px-5 pt-6 pb-4 bg-white z-10">
         <View className="flex-row justify-between items-center">
           <Text className="text-[24px] font-bold text-[#172B2A]">Activity</Text>
-          <NotificationBell />
+          <View className="flex-row items-center">
+            <BadgesButton />
+            <NotificationBell />
+          </View>
         </View>
 
         {/* Main Segmented Control */}

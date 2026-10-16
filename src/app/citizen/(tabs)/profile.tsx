@@ -5,6 +5,7 @@ import { useAuth } from "../../../../context/AuthProvider";
 import { Button, Card } from "../../../components/ui";
 import { theme } from "../../../theme/tokens";
 import NotificationBell from "../../../components/NotificationBell";
+import BadgesButton from "../../../components/BadgesButton";
 
 export default function ProfileScreen() {
   const { logout, user } = useAuth();
@@ -54,7 +55,10 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <Text style={styles.headerTitle}>Profile</Text>
-          <NotificationBell />
+          <View style={styles.headerActions}>
+            <BadgesButton />
+            <NotificationBell />
+          </View>
         </View>
 
         {/* User Info Card */}
@@ -167,6 +171,10 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize['3xl'].size,
     fontFamily: theme.typography.fontFamily.bold,
     color: theme.colors.emerald[700],
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   userCard: {
     marginHorizontal: theme.spacing.xl,

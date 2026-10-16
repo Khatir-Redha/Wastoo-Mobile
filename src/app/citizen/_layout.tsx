@@ -25,6 +25,14 @@ export default function CitizenRootLayout() {
           animation: 'slide_from_right',
         }}
       />
+
+      {/* Badges / gamification */}
+      <Stack.Screen
+        name="gamification"
+        options={{
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }
