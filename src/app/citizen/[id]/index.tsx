@@ -230,7 +230,14 @@ export default function WasteDetailScreen() {
                 <Feather name="map-pin" size={18} color="#1E5631" />
                 <Text className="text-[17px] font-semibold text-[#1b1c1c] ml-2">{locationText}</Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  router.push({
+                    pathname: "/citizen/posts",
+                    params: { view: "map", routePostId: String(post.id) },
+                  });
+                }}
+              >
                 <Text className="text-[#2ECC71] text-[13px] font-semibold">Show route</Text>
               </TouchableOpacity>
             </View>

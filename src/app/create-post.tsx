@@ -114,29 +114,57 @@ export default function CreatePostScreen() {
       Alert.alert("Missing Title", "Please give your listing a title.");
       return;
     }
+    if (title.trim().length < 3) {
+      Alert.alert("Title Too Short", "Title must be at least 3 characters.");
+      return;
+    }
+    if (!category) {
+      Alert.alert("Missing Category", "Please select a waste category.");
+      return;
+    }
     if (images.length === 0) {
       Alert.alert("Missing Photos", "Please add at least one photo.");
+      return;
+    }
+    if (
+      !selectedLocation ||
+      typeof selectedLocation.latitude !== "number" ||
+      typeof selectedLocation.longitude !== "number" ||
+      !isFinite(selectedLocation.latitude) ||
+      !isFinite(selectedLocation.longitude)
+    ) {
+      Alert.alert(
+        "Location Required",
+        "Please select a pickup location on the map before publishing."
+      );
       return;
     }
 
     setIsPublishing(true);
     try {
-      const postData = {
-        title,
+      const postData: any = {
+        title: title.trim(),
         category,
-        description,
-        quantity: Number(weight),
+        quantity: Number(weight) || 1,
         price: isSelling && price ? Number(price) : 0,
         images: images.map((img) => img.url),
-        latitude: selectedLocation?.latitude,
-        longitude: selectedLocation?.longitude,
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
       };
+
+      if (description.trim().length >= 3) {
+        postData.description = description.trim();
+      }
 
       await PostService.createPost(postData);
       router.back();
-    } catch (error) {
-      console.error("Failed to publish listing:", error);
-      Alert.alert("Publish Failed", "Something went wrong. Please try again.");
+    } catch (error: any) {
+      console.error("Failed to publish listing:", error?.response?.data || error);
+      const serverMessage = error?.response?.data?.message;
+      const errorMsg = Array.isArray(serverMessage)
+        ? serverMessage.join("\n")
+        : (serverMessage || "Something went wrong. Please try again.");
+      Alert.alert("Publish Failed", errorMsg);
     } finally {
       setIsPublishing(false);
     }

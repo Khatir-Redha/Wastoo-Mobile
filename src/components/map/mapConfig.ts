@@ -1,8 +1,30 @@
-export const MAPLIBRE_STYLE = {
-  version: 8,
+/**
+ * Map Configuration
+ *
+ * Map style uses OpenFreeMap Positron — a clean, light vector map
+ * derived from OpenStreetMap data, free and open-source.
+ * - No API key required
+ * - No rate limits for reasonable usage
+ * - Attribution: © OpenMapTiles © OpenStreetMap contributors
+ *
+ * @see https://openfreemap.org
+ *
+ * For production with heavy traffic, consider self-hosting the tile stack
+ * or switching to a paid provider like MapTiler or Stadia Maps.
+ */
+
+// ── Map Style ──────────────────────────────────────────────────
+// OpenFreeMap Positron: a clean, light, Google-Maps-like vector style
+// with street names, building footprints, parks, POI labels, and clear road hierarchy.
+export const MAPLIBRE_STYLE_URL =
+  "https://tiles.openfreemap.org/styles/positron";
+
+// Keep the old raster style as a fallback if the vector style fails
+export const MAPLIBRE_STYLE_FALLBACK = {
+  version: 8 as const,
   sources: {
     "osm-tiles": {
-      type: "raster",
+      type: "raster" as const,
       tiles: [
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
         "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -16,11 +38,16 @@ export const MAPLIBRE_STYLE = {
   layers: [
     {
       id: "osm-tiles",
-      type: "raster",
+      type: "raster" as const,
       source: "osm-tiles",
     },
   ],
 };
+
+// Legacy export for backwards compatibility (old raster style object)
+export const MAPLIBRE_STYLE = MAPLIBRE_STYLE_FALLBACK;
+
+// ── Default Camera ──────────────────────────────────────────────
 
 export const DEFAULT_CAMERA = {
   center: {
@@ -29,6 +56,13 @@ export const DEFAULT_CAMERA = {
   },
   zoom: 14.5,
 };
+
+// ── Map Attribution ──────────────────────────────────────────────
+
+export const MAP_ATTRIBUTION =
+  "© OpenMapTiles © OpenStreetMap contributors";
+
+// ── Helpers ──────────────────────────────────────────────────────
 
 export function regionToCamera(region: {
   latitude: number;
