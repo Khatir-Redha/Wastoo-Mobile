@@ -1,10 +1,22 @@
+import { Platform } from "react-native";
+import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
 // Register the browser redirect handler for Expo Go / dev builds
 WebBrowser.maybeCompleteAuthSession();
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.9:3000";
+const hostUri = Constants.expoConfig?.hostUri;
+const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
+
+let resolvedApiUrl = `http://${localIP}:5000`;
+if (Platform.OS === 'android' && !Constants.isDevice) {
+  resolvedApiUrl = "http://localhost:5000";
+} else if (Platform.OS === 'ios' && !Constants.isDevice) {
+  resolvedApiUrl = "http://127.0.0.1:5000";
+}
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
 
 // The deep-link URL the backend must redirect to after OAuth success.
 // Matches the `wastoo://` scheme defined in app.json
@@ -34,9 +46,9 @@ export async function openGoogleOAuth(): Promise<{
   // The redirect URI that the backend should send the user back to
   const redirectUri = Linking.createURL(OAUTH_CALLBACK_PATH);
 
-  // The backend OAuth start URL – pass state=mobile so the server knows
-  // to redirect back to the mobile deep-link instead of the web frontend.
-  const authUrl = `${API_URL}/auth/google?state=mobile&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  // The backend OAuth start URL – pass client=mobile so the backend sets a cookie
+  // and routes back to the mobile deep-link instead of the web frontend.
+  const authUrl = `${API_URL}/auth/google?client=mobile`;
 
   try {
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);

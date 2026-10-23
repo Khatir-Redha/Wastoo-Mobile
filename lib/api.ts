@@ -84,7 +84,7 @@ api.interceptors.response.use(
         const newAccessToken = response.data.accessToken;
 
         // 3. Save the new Access Token to the phone
-        await SecureStore.setItemAsync("accessToken", newAccessToken);
+        await SecureStore.setItemAsync("access_token", newAccessToken);
 
         // 4. Update the failed original request with the new token
         originalRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
