@@ -41,6 +41,7 @@ import RouteSummary from "../../../components/map/RouteSummary";
 import {
   MAPLIBRE_STYLE_URL,
   MAPLIBRE_STYLE_FALLBACK,
+  DEFAULT_CAMERA,
 } from "../../../components/map/mapConfig";
 import NotificationBell from "../../../components/NotificationBell";
 import BadgesButton from "../../../components/BadgesButton";
@@ -104,6 +105,7 @@ export default function PostsAndMapScreen() {
   );
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [mapPosts, setMapPosts] = useState<MapPostsResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
@@ -163,19 +165,36 @@ export default function PostsAndMapScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          console.log("Location permission denied");
+          if (isMounted) setLocationError("Location permission denied");
           return;
         }
 
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-
-        if (isMounted) setLocation(currentLocation);
-      } catch (err) {
-        console.log("location fetch failed, trying last known location:", err);
-        const lastKnown = await Location.getLastKnownPositionAsync({});
-        if (isMounted && lastKnown) setLocation(lastKnown);
+        try {
+          const currentLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          if (isMounted) {
+            setLocation(currentLocation);
+            setLocationError(null);
+          }
+        } catch (currErr) {
+          console.log("getCurrentPositionAsync failed, trying lastKnownLocation:", currErr);
+          
+          const lastKnownLocation = await Location.getLastKnownPositionAsync();
+          if (lastKnownLocation) {
+            if (isMounted) {
+              setLocation(lastKnownLocation);
+              setLocationError(null);
+            }
+          } else {
+            throw new Error("No current or last known location available");
+          }
+        }
+      } catch (err: any) {
+        console.log("location fetch failed:", err);
+        if (isMounted) {
+          setLocationError(err.message || "Location unavailable");
+        }
       }
     };
 
@@ -183,27 +202,29 @@ export default function PostsAndMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [locationError === null && !location]);
 
   // ── Fetch Map Markers (Posts & Centers) ────────────────────────
   useEffect(() => {
-    if (!location) return;
+    if (!location && !locationError) return;
 
     let isMounted = true;
     const fetchMarkers = async () => {
       setLoadingPosts(true);
-      const { latitude, longitude } = location.coords;
+      const coords = location 
+        ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
+        : DEFAULT_CAMERA.center;
       try {
         const [nearByPosts, nearByCenters] = await Promise.all([
           MapService.getMapPosts({
-            latitude,
-            longitude,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             radius,
             ...(category !== "ALL" && { category }),
           }),
           MapService.getMapCenters({
-            latitude,
-            longitude,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             radius,
           }),
         ]);
@@ -236,7 +257,7 @@ export default function PostsAndMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location, radius, category, params.routePostId]);
+  }, [location, locationError, radius, category, params.routePostId]);
 
   // ── Fetch Posts for List View ──────────────────────────────────
   useEffect(() => {
@@ -350,7 +371,7 @@ export default function PostsAndMapScreen() {
 
   const handleRecenter = () => {
     if (!location) {
-      Alert.alert("Location", "Waiting for current GPS location...");
+      Alert.alert("Location Unavailable", "Could not determine your current location.");
       return;
     }
     cameraRef.current?.flyTo({
@@ -616,7 +637,7 @@ export default function PostsAndMapScreen() {
   // ── Redesigned Map View ─────────────────────────────────────────
   const renderMap = () => (
     <View style={styles.flex}>
-      {location ? (
+      {location || locationError ? (
         <>
           {/* Main MapLibre Map */}
           <Map
@@ -644,17 +665,19 @@ export default function PostsAndMapScreen() {
             <Camera
               ref={cameraRef}
               initialViewState={{
-                center: [location.coords.longitude, location.coords.latitude],
+                center: location 
+                  ? [location.coords.longitude, location.coords.latitude] 
+                  : [DEFAULT_CAMERA.center.longitude, DEFAULT_CAMERA.center.latitude],
                 zoom: 14.5,
               }}
               maxZoom={19}
             />
 
             {/* Native User Location Puck with Accuracy Circle & Heading */}
-            <UserLocation animated accuracy heading />
+            {location && <UserLocation animated accuracy heading />}
 
             {/* Active Route Overlay */}
-            {activeRoute && (
+            {activeRoute && location && (
               <RouteOverlay
                 route={activeRoute.route}
                 originCoordinate={{

@@ -168,23 +168,27 @@ export default function CollectorMapScreen() {
   }, [locationError === null && !location]);
 
   useEffect(() => {
-    if (!location) return;
+    if (!location && !locationError) return;
 
     let isMounted = true;
     const fetchData = async () => {
       setLoading(true);
-      const { latitude, longitude } = location.coords;
+      
+      const coords = location 
+        ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
+        : DEFAULT_CAMERA.center;
+
       try {
         const [pickups, centers] = await Promise.all([
           MapService.getMapPickups({
-            latitude,
-            longitude,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             radius,
             ...(category !== "ALL" && { category }),
           }),
           MapService.getMapCenters({
-            latitude,
-            longitude,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
             radius,
             ...(category !== "ALL" && { category }),
           }),
@@ -208,7 +212,7 @@ export default function CollectorMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location, radius, category]);
+  }, [location, locationError, radius, category]);
 
   const handleGetDirections = async (
     target: { latitude: number; longitude: number; name?: string; title?: string }
