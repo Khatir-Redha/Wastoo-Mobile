@@ -18,7 +18,6 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true,
       "package": "com.anonymous.Wastoo",
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
@@ -65,7 +64,15 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Wasto to use your location to show pickup requests near you."
         }
       ],
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},

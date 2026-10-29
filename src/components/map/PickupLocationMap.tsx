@@ -62,7 +62,7 @@ export default function PickupLocationMap({
     [onLocationSelect]
   );
 
-  // Helper to get GPS location with fallback chain
+  // Helper to get GPS location with robust fallback chain
   const fetchDevicePosition = async (): Promise<{
     latitude: number;
     longitude: number;
@@ -73,7 +73,7 @@ export default function PickupLocationMap({
         return null;
       }
 
-      // Try current position first (balanced accuracy for fast response)
+      // Try current position first
       try {
         const current = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -88,18 +88,22 @@ export default function PickupLocationMap({
         console.log("getCurrentPositionAsync failed, falling back to last known:", err);
       }
 
-      // Fallback to last known position (fast, works on emulators)
-      const lastKnown = await Location.getLastKnownPositionAsync({});
-      if (lastKnown?.coords) {
-        return {
-          latitude: lastKnown.coords.latitude,
-          longitude: lastKnown.coords.longitude,
-        };
+      // Fallback to last known position independently
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync({});
+        if (lastKnown?.coords) {
+          return {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+          };
+        }
+      } catch (lastErr) {
+        console.log("getLastKnownPositionAsync also failed:", lastErr);
       }
 
       return null;
     } catch (err) {
-      console.log("fetchDevicePosition error:", err);
+      console.log("fetchDevicePosition fatal error:", err);
       return null;
     }
   };

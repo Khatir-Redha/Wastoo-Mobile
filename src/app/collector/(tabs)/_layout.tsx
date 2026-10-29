@@ -24,20 +24,20 @@ export default function CollectorTabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Available',
-          tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons name="truck-delivery-outline" size={26} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="map"
         options={{
           title: 'Map',
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="map-outline" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Listings',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="format-list-bulleted" size={24} color={color} />
           ),
         }}
       />

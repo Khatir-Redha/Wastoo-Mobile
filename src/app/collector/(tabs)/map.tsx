@@ -35,6 +35,7 @@ import RouteSummary from "../../../components/map/RouteSummary";
 import {
   MAPLIBRE_STYLE_URL,
   MAPLIBRE_STYLE_FALLBACK,
+  DEFAULT_CAMERA,
 } from "../../../components/map/mapConfig";
 import { theme } from "../../../theme/tokens";
 
@@ -82,6 +83,7 @@ export default function CollectorMapScreen() {
   const markerPressedRef = useRef(false);
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [mapPickups, setMapPickups] = useState<MapPickupResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
@@ -127,22 +129,43 @@ export default function CollectorMapScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          console.log("Location permission denied");
+          if (isMounted) setLocationError("Location permission denied");
           return;
         }
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (isMounted) setLocation(currentLocation);
-      } catch (err) {
+
+        try {
+          const currentLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          if (isMounted) {
+            setLocation(currentLocation);
+            setLocationError(null);
+          }
+        } catch (currErr) {
+          console.log("getCurrentPositionAsync failed, trying lastKnownLocation:", currErr);
+          
+          const lastKnownLocation = await Location.getLastKnownPositionAsync();
+          if (lastKnownLocation) {
+            if (isMounted) {
+              setLocation(lastKnownLocation);
+              setLocationError(null);
+            }
+          } else {
+            throw new Error("No current or last known location available");
+          }
+        }
+      } catch (err: any) {
         console.log("location fetch failed:", err);
+        if (isMounted) {
+          setLocationError(err.message || "Location unavailable");
+        }
       }
     };
     getLocation();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [locationError === null && !location]);
 
   useEffect(() => {
     if (!location) return;
@@ -254,7 +277,10 @@ export default function CollectorMapScreen() {
   };
 
   const handleRecenter = () => {
-    if (!location) return;
+    if (!location) {
+      Alert.alert("Location Unavailable", "Could not determine your current location.");
+      return;
+    }
     cameraRef.current?.flyTo({
       center: [location.coords.longitude, location.coords.latitude],
       zoom: 15,
@@ -262,7 +288,7 @@ export default function CollectorMapScreen() {
     });
   };
 
-  if (!location) {
+  if (!location && !locationError) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
@@ -297,20 +323,22 @@ export default function CollectorMapScreen() {
         <Camera
           ref={cameraRef}
           initialViewState={{
-            center: [location.coords.longitude, location.coords.latitude],
+            center: location 
+              ? [location.coords.longitude, location.coords.latitude] 
+              : [DEFAULT_CAMERA.center.longitude, DEFAULT_CAMERA.center.latitude],
             zoom: 14.5,
           }}
           maxZoom={19}
         />
 
-        <UserLocation animated accuracy heading />
+        {location && <UserLocation animated accuracy heading />}
 
         {activeRoute && (
           <RouteOverlay
             route={activeRoute.route}
             originCoordinate={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
+              latitude: location!.coords.latitude,
+              longitude: location!.coords.longitude,
             }}
             destinationCoordinate={activeRoute.destinationCoordinate}
           />
@@ -362,6 +390,26 @@ export default function CollectorMapScreen() {
           />
         ))}
       </Map>
+
+      {locationError && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>
+            {locationError === "Location permission denied" 
+              ? "Location access denied. Using default region." 
+              : "Device location unavailable. Using default region."}
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => {
+              setLocationError(null);
+              // Trigger the useEffect by updating a dependency or calling a function
+              // For simplicity, we can just call a function if we extract getLocation
+            }}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Floating Category Filter Chips */}
       <MapFilterBar
@@ -458,6 +506,40 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: theme.colors.text.secondary,
     fontFamily: theme.typography.fontFamily.medium,
+  },
+  errorBanner: {
+    position: "absolute",
+    top: 60,
+    left: 20,
+    right: 20,
+    backgroundColor: theme.colors.canvas.primary,
+    padding: 12,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    zIndex: 20,
+    ...theme.shadows.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.error[500],
+  },
+  errorText: {
+    fontSize: 13,
+    color: theme.colors.text.primary,
+    fontFamily: theme.typography.fontFamily.medium,
+    flex: 1,
+    marginRight: 12,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.emerald[500],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryText: {
+    color: "white",
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.bold,
   },
   floatingControlsRight: {
     position: "absolute",

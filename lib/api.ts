@@ -11,16 +11,21 @@ const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
 
 // Determine the API URL based on the environment
 let resolvedApiUrl = `http://${localIP}:5000`;
-if (Platform.OS === 'android' && !Constants.isDevice) {
-  // We are on an Android Emulator. Using the physical IP often gets blocked by Windows Firewall.
+if (Platform.OS === 'android' && Constants.isDevice === false) {
+  // We are explicitly on an Android Emulator.
   // 10.0.2.2 bypasses the firewall and securely routes to localhost.
   resolvedApiUrl = "http://10.0.2.2:5000";
-} else if (Platform.OS === 'ios' && !Constants.isDevice) {
+} else if (Platform.OS === 'ios' && Constants.isDevice === false) {
   resolvedApiUrl = "http://127.0.0.1:5000";
+} else {
+  // Physical device or undefined isDevice: use detected local IP or placeholder
+  resolvedApiUrl = hostUri ? `http://${localIP}:5000` : "http://YOUR_COMPUTER_IP:5000";
 }
 
 // Use an environment variable for production, fallback to dynamic local IP for dev
 const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
+console.log(`[API] Resolved API_URL: ${API_URL}`);
+console.log(`[API] Platform: ${Platform.OS}, isDevice: ${Constants.isDevice}`);
 
 const api = axios.create({
   baseURL: API_URL,

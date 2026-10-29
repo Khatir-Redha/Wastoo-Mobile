@@ -1,9 +1,8 @@
-﻿import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import api from "../../../lib/api";
+import { useAuth } from "../../../context/AuthProvider";
 
 export default function OAuthCallbackScreen() {
   const params = useLocalSearchParams<{
@@ -11,12 +10,16 @@ export default function OAuthCallbackScreen() {
     refreshToken?: string | string[];
   }>();
   const router = useRouter();
+  const { user, completeOAuthTokens } = useAuth();
+  const handledRef = useRef(false);
 
   useEffect(() => {
     handleCallback();
-  }, []);
+  }, [params.accessToken, params.refreshToken]);
 
   const handleCallback = async () => {
+    if (handledRef.current) return;
+
     WebBrowser.maybeCompleteAuthSession();
 
     const rawAccessToken = params.accessToken;
@@ -26,22 +29,18 @@ export default function OAuthCallbackScreen() {
     const refreshToken = Array.isArray(rawRefreshToken) ? rawRefreshToken[0] : rawRefreshToken;
 
     if (typeof accessToken === "string" && accessToken.length > 0 && typeof refreshToken === "string" && refreshToken.length > 0) {
+      handledRef.current = true;
       try {
-        await SecureStore.setItemAsync("access_token", accessToken);
-        await SecureStore.setItemAsync("refresh_token", refreshToken);
-
-        api.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-
-        const res = await api.get("/user");
-        const user = res.data;
-        const userRoleRoute = user?.role
-          ? `/${user.role.toLowerCase().replace(/\s+/g, "-")}`
-          : "/citizen";
-        router.replace(userRoleRoute as any);
+        await completeOAuthTokens(accessToken, refreshToken);
       } catch (error) {
-        console.error("[OAuthCallback] Failed to save tokens or fetch profile:", error);
+        console.error("[OAuthCallback] Failed to complete auth or fetch profile:", error);
         router.replace("/auth" as any);
       }
+    } else if (user) {
+      const userRoleRoute = user?.role
+        ? `/${user.role.toLowerCase().replace(/\s+/g, "-")}`
+        : "/citizen";
+      router.replace(userRoleRoute as any);
     } else {
       console.warn("[OAuthCallback] No valid tokens received in callback URL.");
       router.replace("/auth" as any);

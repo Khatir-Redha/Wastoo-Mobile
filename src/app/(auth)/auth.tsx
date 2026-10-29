@@ -361,9 +361,10 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
 // MAIN SCREEN EXPORT
 // ==========================================
 export default function AuthScreen() {
-  const { googleLogin } = useAuth();
+  const { googleLogin, facebookLogin } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isFacebookLoading, setIsFacebookLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
@@ -376,6 +377,20 @@ export default function AuthScreen() {
       }
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    setIsFacebookLoading(true);
+    try {
+      await facebookLogin();
+    } catch (error: any) {
+      const message = error?.message || "Facebook sign-in failed. Please try again.";
+      if (!message.toLowerCase().includes("cancel")) {
+        Alert.alert("Facebook Sign-In Failed", message);
+      }
+    } finally {
+      setIsFacebookLoading(false);
     }
   };
 
@@ -503,7 +518,18 @@ export default function AuthScreen() {
             />
 
             <Button
-              title="Apple"
+              title={isFacebookLoading ? "Connecting…" : "Continue with Facebook"}
+              variant="secondary"
+              size="lg"
+              onPress={handleFacebookLogin}
+              loading={isFacebookLoading}
+              icon={!isFacebookLoading && <FontAwesome5 name="facebook" size={18} color="#1877F2" />}
+              iconPosition="left"
+              hapticFeedback={false}
+            />
+
+            <Button
+              title="Continue with Apple"
               variant="secondary"
               size="lg"
               onPress={() => {}}

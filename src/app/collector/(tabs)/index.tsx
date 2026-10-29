@@ -4,26 +4,11 @@ import {
   TextInput, ScrollView, RefreshControl, SafeAreaView, Platform, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import PickupService, { Pickup } from '../../../../services/pickup.service';
 import { useAuth } from '../../../../context/AuthProvider';
 import NotificationBell from '../../../components/NotificationBell';
-
-const CATEGORIES = ['All', 'PLASTIC', 'GLASS', 'PAPER', 'METAL', 'ORGANIC', 'TEXTILE', 'MIXED'];
-
-const CATEGORY_ICONS: Record<string, string> = {
-  PLASTIC: 'bottle-soda-outline',
-  GLASS: 'bottle-wine-outline',
-  PAPER: 'file-outline',
-  METAL: 'nail',
-  ORGANIC: 'leaf',
-  TEXTILE: 'hanger',
-  HAZARDOUS: 'biohazard',
-  MIXED: 'recycle',
-};
-
-// Mock distance (until geo endpoint is available)
-const mockDistance = (id: number) => `${((id % 8) + 0.5).toFixed(1)} km`;
+import { theme } from '../../../theme/tokens';
 
 export default function AvailablePickupsScreen() {
   const router = useRouter();
@@ -33,10 +18,6 @@ export default function AvailablePickupsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [acceptingId, setAcceptingId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const PAGE_SIZE = 10;
 
   const fetchPickups = useCallback(async (reset = false) => {
     try {
@@ -45,7 +26,6 @@ export default function AvailablePickupsScreen() {
       // Only PENDING (unassigned) pickups visible to collectors
       const pending = data.filter(p => p.status === 'PENDING' && !p.deleted_at);
       setPickups(pending);
-      setHasMore(pending.length >= PAGE_SIZE);
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || 'Failed to load pickups');
     } finally {
@@ -74,107 +54,28 @@ export default function AvailablePickupsScreen() {
       return;
     }
 
-    setAcceptingId(pickup.id);
     try {
       await PickupService.assignCollector(pickup.id);
       setPickups(prev => prev.filter(p => p.id !== pickup.id));
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to accept pickup');
-    } finally {
-      setAcceptingId(null);
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to accept pickup');
     }
   };
 
-  // Client-side filter
-  const filtered = pickups.filter(p => {
-    const matchCat = activeCategory === 'All'; // category not in pickup model, post has it
-    const matchSearch = search.trim() === '' || p.id.toString().includes(search);
-    return (matchCat || true) && matchSearch;
+  // Simplified filtering - removed mock distance and complex pagination
+  const filtered = pickups.filter(pickup => {
+    // Since we don't have category info in pickup model, we'll show all for now
+    // TODO: Enhance when API supports category filtering
+    const matchSearch = search.trim() === '' || pickup.id.toString().includes(search);
+    return matchSearch;
   });
-
-  const displayed = filtered.slice(0, page * PAGE_SIZE);
-
-  const renderEmpty = () => {
-    if (loading) return null;
-    if (error) return (
-      <View className="flex-1 items-center justify-center mt-24 px-8">
-        <Feather name="wifi-off" size={48} color="#ECECEC" />
-        <Text className="text-[#1b1c1c] font-bold text-[18px] mt-4">Connection Error</Text>
-        <Text className="text-[#6D7A6E] text-[14px] mt-2 text-center">{error}</Text>
-        <TouchableOpacity onPress={() => fetchPickups(true)} className="mt-6 bg-[#2ECC71] px-6 py-3 rounded-full">
-          <Text className="text-white font-bold">Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-    return (
-      <View className="items-center justify-center mt-24">
-        <MaterialCommunityIcons name="truck-check-outline" size={64} color="#ECECEC" />
-        <Text className="text-[#1b1c1c] font-bold text-[18px] mt-4">No Available Pickups</Text>
-        <Text className="text-[#6D7A6E] text-[14px] mt-2 text-center px-8">
-          All nearby pickups have been accepted. Check back soon!
-        </Text>
-      </View>
-    );
-  };
-
-  const renderCard = ({ item }: { item: Pickup }) => (
-    <View className="bg-white border border-[#ECECEC] rounded-[20px] p-5 mb-4"
-      style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}>
-      {/* Top row */}
-      <View className="flex-row justify-between items-start mb-4">
-        <View className="flex-row items-center bg-[#E8F8EE] px-3 py-1.5 rounded-xl">
-          <MaterialCommunityIcons name="recycle" size={16} color="#1E5631" />
-          <Text className="text-[13px] font-bold text-[#1E5631] ml-1">Post #{item.post_id}</Text>
-        </View>
-        <View className="flex-row items-center">
-          <Ionicons name="location-outline" size={14} color="#6D7A6E" />
-          <Text className="text-[13px] font-bold text-[#6D7A6E] ml-0.5">{mockDistance(item.id)}</Text>
-        </View>
-      </View>
-
-      {/* Schedule */}
-      <View className="flex-row items-center mb-2">
-        <Feather name="calendar" size={15} color="#2ECC71" />
-        <Text className="text-[14px] text-[#1b1c1c] font-semibold ml-2">
-          {item.scheduled_date ? new Date(item.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'ASAP'}
-        </Text>
-      </View>
-      <View className="flex-row items-center mb-4">
-        <Feather name="clock" size={15} color="#2ECC71" />
-        <Text className="text-[14px] text-[#6D7A6E] ml-2">
-          {item.start_time ? `${item.start_time} – ${item.end_time}` : 'Flexible time'}
-        </Text>
-      </View>
-
-      {/* Actions */}
-      <View className="flex-row gap-3">
-        <TouchableOpacity
-          onPress={() => router.push(`/collector/pickup/${item.id}`)}
-          className="flex-1 h-[44px] border-2 border-[#ECECEC] rounded-xl items-center justify-center"
-        >
-          <Text className="text-[#6D7A6E] font-bold text-[14px]">Details</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleAccept(item)}
-          disabled={acceptingId === item.id}
-          className={`flex-1 h-[44px] rounded-xl items-center justify-center ${acceptingId === item.id ? 'bg-[#7fc796]' : 'bg-[#2ECC71]'}`}
-          style={{ shadowColor: '#2ECC71', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 3 }}
-        >
-          {acceptingId === item.id
-            ? <ActivityIndicator color="white" size="small" />
-            : <Text className="text-white font-bold text-[14px]">Accept Pickup</Text>
-          }
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F8F6]" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
       {/* Header */}
-      <View className="px-5 pt-4 pb-3 bg-white border-b border-[#ECECEC]">
+      <View className="bg-white border-b border-[#ECECEC] px-5 pt-4 pb-3">
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-[24px] font-bold text-[#1b1c1c]">Available Pickups</Text>
+          <Text className="text-[20px] font-bold text-[#1b1c1c]">Nearby Pickups</Text>
           <NotificationBell />
         </View>
 
@@ -183,7 +84,7 @@ export default function AvailablePickupsScreen() {
           <Feather name="search" size={18} color="#8A8F87" />
           <TextInput
             className="flex-1 text-[#1b1c1c] text-[15px] ml-2"
-            placeholder="Search by pickup ID or post..."
+            placeholder="Search pickup ID..."
             placeholderTextColor="#B0B0B0"
             value={search}
             onChangeText={setSearch}
@@ -195,47 +96,131 @@ export default function AvailablePickupsScreen() {
           )}
         </View>
 
-        {/* Category Filters */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CATEGORIES.map(cat => (
+        {/* Simple Category Filter */}
+        <View className="flex-wrap gap-2 mb-4 px-5">
+          {['All', 'PLASTIC', 'PAPER', 'METAL', 'GLASS', 'ORGANIC'].map(category => (
             <TouchableOpacity
-              key={cat}
-              onPress={() => setActiveCategory(cat)}
-              className={`mr-2 px-4 py-2 rounded-full border ${activeCategory === cat ? 'bg-[#1E5631] border-[#1E5631]' : 'bg-white border-[#ECECEC]'}`}
+              key={category}
+              onPress={() => setActiveCategory(category)}
+              className={`${activeCategory === category 
+                ? 'bg-[#1E5631] border-[#1E5631]' 
+                : 'bg-white border-[#ECECEC]'} 
+                px-4 py-2 rounded-full`}
             >
-              <Text className={`text-[13px] font-semibold ${activeCategory === cat ? 'text-white' : 'text-[#6D7A6E]'}`}>
-                {cat === 'All' ? 'All' : cat.charAt(0) + cat.slice(1).toLowerCase()}
+              <Text className={`${activeCategory === category 
+                ? 'text-white' 
+                : 'text-[#6D7A6E]'} 
+                font-medium text-[13px]`}>
+                {category === 'All' ? 'All' : category.charAt(0) + category.slice(1).toLowerCase()}
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       </View>
 
-      {/* List */}
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#2ECC71" />
-          <Text className="text-[#6D7A6E] mt-3">Finding nearby pickups...</Text>
+      {/* List Content */}
+      {!loading && !error && pickups.length === 0 ? (
+        <View className="flex-1 items-center justify-center mt-10">
+          <MaterialCommunityIcons name="truck-check-outline" size={48} color="#ECECEC" />
+          <Text className="text-[18px] font-bold text-[#1b1c1c] mt-3">No Pickups Available</Text>
+          <Text className="text-[14px] text-[#6D7A6E] text-center px-6 mt-1">
+            Check back later for new collection opportunities
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={displayed}
+          data={filtered}
           keyExtractor={item => item.id.toString()}
-          renderItem={renderCard}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2ECC71" />}
-          ListFooterComponent={
-            displayed.length < filtered.length ? (
-              <TouchableOpacity
-                onPress={() => setPage(p => p + 1)}
-                className="py-4 items-center"
-              >
-                <Text className="text-[#2ECC71] font-bold text-[15px]">Load More</Text>
-              </TouchableOpacity>
-            ) : null
-          }
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, flexGrow: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.emerald[500]} />}
+          ListEmptyComponent={() => null}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => router.push(`/collector/pickup/${item.id}`)}
+              activeOpacity={0.8}
+              className="mb-4"
+            >
+              <View className="bg-white border border-[#ECECEC] rounded-xl p-4"
+                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+                <View className="flex-row items-center justify-between mb-2">
+                  <View className="flex-row items-center bg-[#E8F8EE] px-3 py-1.5 rounded-md">
+                    <MaterialCommunityIcons name="recycle" size={16} color="#1E5631" />
+                    <Text className="text-[13px] font-medium text-[#1E5631] ml-1">
+                      Post #{item.post_id}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center">
+                    <Feather name="map-pin" size={14} color="#6D7A6E" />
+                    <Text className="text-[13px] font-medium text-[#6D7A6E] ml-0.5">
+                      Nearby
+                    </Text>
+                  </View>
+                </View>
+                
+                <View className="flex-row items-center mb-2">
+                  <Feather name="calendar" size={14} color="#2ECC71" />
+                  <Text className="text-[13px] text-[#1b1c1c] ml-2">
+                    Flexible pickup
+                  </Text>
+                </View>
+                
+                <View className="flex-row items-center mb-2">
+                  <Feather name="clock" size={14} color="#2ECC71" />
+                  <Text className="text-[13px] text-[#6D7A6E] ml-2">
+                    Scheduled time TBD
+                  </Text>
+                </View>
+                
+                <View className="flex-col">
+                  <TouchableOpacity
+                    onPress={() => handleAccept(item)}
+                    disabled={!isVerified}
+                    className={`w-full h-[48px] rounded-md flex items-center justify-center 
+                      ${!isVerified 
+                        ? 'bg-[#ECECEC]' 
+                        : 'bg-[#2ECC71]'} 
+                      border border-[${!isVerified 
+                        ? '#ECECEC' 
+                        : '#2ECC71'}]
+                    `}
+                  >
+                    {!isVerified ? (
+                      <Text className="text-[14px] font-medium text-[#6D7A6E]">
+                        Verify to Accept
+                      </Text>
+                    ) : (
+                      <Text className="text-[14px] font-medium text-white">
+                        Accept Pickup
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
         />
+      )}
+      
+      {loading && (
+        <View className="flex-1 items-center justify-center mt-10">
+          <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
+          <Text className="text-[14px] text-[#6D7A6E] mt-3">Loading pickups...</Text>
+        </View>
+      )}
+      
+      {error && (
+        <View className="flex-1 items-center justify-center mt-10 px-6">
+          <Feather name="wifi-off" size={48} color="#ECECEC" />
+          <Text className="text-[18px] font-bold text-[#1b1c1c] mt-3">Connection Error</Text>
+          <Text className="text-[14px] text-[#6D7A6E] text-center mt-1">
+            {error}
+          </Text>
+          <TouchableOpacity onPress={fetchPickups} className="mt-4">
+            <View className="w-[120px] h-[40px] bg-[#2ECC71] rounded-md flex items-center justify-center">
+              <Text className="text-white font-medium">Retry</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       )}
     </SafeAreaView>
   );

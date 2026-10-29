@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import api from "../lib/api";
 import { appEvents, APP_EVENTS } from "../lib/appEvents";
 import { openGoogleOAuth } from "../services/google-auth.service";
+import { openFacebookOAuth } from "../services/facebook-auth.service";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
 
 export interface User {
@@ -23,7 +24,9 @@ export type AuthContextType = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   googleLogin: () => Promise<void>;
+  facebookLogin: () => Promise<void>;
   logout: () => Promise<void>;
+  completeOAuthTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   sessionExpired: boolean;
   dismissSessionExpired: () => void;
 };
@@ -113,6 +116,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const completeOAuthTokens = async (accessToken: string, refreshToken: string) => {
+    await SecureStore.setItemAsync("access_token", accessToken);
+    await SecureStore.setItemAsync("refresh_token", refreshToken);
+    await fetchProfile(accessToken);
+  };
+
   /**
    * Initiates the Google OAuth flow via the backend.
    * Opens a system browser → user signs in with Google → backend redirects back
@@ -122,16 +131,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const tokens = await openGoogleOAuth();
 
     if (!tokens) {
-      // User cancelled the flow or tokens were missing – throw so the UI can handle it
       throw new Error("Google sign-in was cancelled or failed.");
     }
 
-    const { accessToken, refreshToken } = tokens;
+    await completeOAuthTokens(tokens.accessToken, tokens.refreshToken);
+  };
 
-    await SecureStore.setItemAsync("access_token", accessToken);
-    await SecureStore.setItemAsync("refresh_token", refreshToken);
+  const facebookLogin = async () => {
+    const tokens = await openFacebookOAuth();
 
-    await fetchProfile(accessToken);
+    if (!tokens) {
+      throw new Error("Facebook sign-in was cancelled or failed.");
+    }
+
+    await completeOAuthTokens(tokens.accessToken, tokens.refreshToken);
   };
 
   const cleanupAuth = async () => {
@@ -167,7 +180,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loading,
         login,
         googleLogin,
+        facebookLogin,
         logout,
+        completeOAuthTokens,
         sessionExpired,
         dismissSessionExpired,
       }}

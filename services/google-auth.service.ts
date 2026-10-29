@@ -9,11 +9,15 @@ WebBrowser.maybeCompleteAuthSession();
 const hostUri = Constants.expoConfig?.hostUri;
 const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
 
+// Determine the API URL based on the environment
+// Determine the API URL based on the environment
 let resolvedApiUrl = `http://${localIP}:5000`;
-if (Platform.OS === 'android' && !Constants.isDevice) {
-  resolvedApiUrl = "http://localhost:5000";
-} else if (Platform.OS === 'ios' && !Constants.isDevice) {
+if (Platform.OS === 'android' && Constants.isDevice === false) {
+  resolvedApiUrl = "http://10.0.2.2:5000";
+} else if (Platform.OS === 'ios' && Constants.isDevice === false) {
   resolvedApiUrl = "http://127.0.0.1:5000";
+} else {
+  resolvedApiUrl = hostUri ? `http://${localIP}:5000` : "http://YOUR_COMPUTER_IP:5000";
 }
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
@@ -46,9 +50,9 @@ export async function openGoogleOAuth(): Promise<{
   // The redirect URI that the backend should send the user back to
   const redirectUri = Linking.createURL(OAUTH_CALLBACK_PATH);
 
-  // The backend OAuth start URL – pass client=mobile so the backend sets a cookie
+  // The backend OAuth start URL – pass state=mobile so the backend sets a cookie
   // and routes back to the mobile deep-link instead of the web frontend.
-  const authUrl = `${API_URL}/auth/google?client=mobile`;
+  const authUrl = `${API_URL}/auth/google?state=mobile`;
 
   try {
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
