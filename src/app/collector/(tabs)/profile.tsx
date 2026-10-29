@@ -2,32 +2,35 @@ import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
 import { useAuth } from '../../../../context/AuthProvider';
+import { theme } from '../../../theme/tokens';
+import { Button } from '../../../components/ui';
 
 export default function CollectorProfileScreen() {
   const { logout, user } = useAuth();
 
   return (
-    <SafeAreaView className="flex-1 bg-white" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
-      <View className="flex-1 items-center justify-center px-6">
-        <View className="w-20 h-20 bg-[#E8F8EE] rounded-full items-center justify-center mb-4">
-          <Text className="text-[32px] font-bold text-[#1E5631]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.primary }} style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.xl }}>
+        <View style={{ width: 80, height: 80, backgroundColor: theme.colors.emerald[50], borderRadius: theme.radius.full, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.lg }}>
+          <Text style={{ fontSize: 32, fontFamily: theme.typography.fontFamily.bold, color: theme.colors.emerald[500] }}>
             {user?.name?.charAt(0).toUpperCase() || 'C'}
           </Text>
         </View>
-        <Text className="text-[22px] font-bold text-[#1b1c1c] mb-1">{user?.name || 'Collector'}</Text>
-        <Text className="text-[14px] text-[#6D7A6E] mb-1">{user?.email}</Text>
-        <View className="bg-[#E8F8EE] px-4 py-1.5 rounded-full mb-8">
-          <Text className="text-[#1E5631] font-bold text-[13px] uppercase tracking-wider">Collector</Text>
+        <Text style={{ fontSize: theme.typography.fontSize['2xl'].size, fontFamily: theme.typography.fontFamily.bold, color: theme.colors.text.primary, marginBottom: theme.spacing.xs }}>{user?.name || 'Collector'}</Text>
+        <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, marginBottom: theme.spacing.md }}>{user?.email}</Text>
+        <View style={{ backgroundColor: theme.colors.emerald[50], paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.xs, borderRadius: theme.radius.full, marginBottom: theme.spacing['2xl'] }}>
+          <Text style={{ color: theme.colors.emerald[500], fontFamily: theme.typography.fontFamily.bold, fontSize: theme.typography.fontSize.sm.size, textTransform: 'uppercase', letterSpacing: 1 }}>Collector</Text>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.8}
+        <Button
+          title="Log Out"
+          variant="secondary"
+          size="md"
           onPress={logout}
-          className="w-full max-w-[280px] h-[54px] bg-white border border-[#ECECEC] rounded-full flex-row items-center justify-center gap-2 shadow-sm"
-        >
-          <MaterialIcons name="logout" size={20} color="#EA4335" />
-          <Text className="text-[#EA4335] font-semibold text-[16px]">Log Out</Text>
-        </TouchableOpacity>
+          icon={<MaterialIcons name="logout" size={20} color={theme.colors.error[500]} />}
+          iconPosition="left"
+          style={{ width: '100%', maxWidth: 280, borderColor: theme.colors.error[500], color: theme.colors.error[500] }}
+        />
       </View>
     </SafeAreaView>
   );

@@ -1,25 +1,32 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, Platform, TouchableOpacity } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { theme } from '../../../theme/tokens';
 
 export default function CollectorTabsLayout() {
+  const router = useRouter();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1E5631',
-          height: Platform.OS === 'ios' ? 96 : 76,
-          borderTopWidth: 0,
-          elevation: 0,
+          backgroundColor: theme.colors.canvas.primary,
+          height: Platform.OS === 'ios' ? 92 : 70,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingTop: 8,
+          borderTopWidth: 1,
+          borderTopColor: theme.colors.border.default,
+          ...theme.shadows.lg,
+          borderTopLeftRadius: theme.radius.xl,
+          borderTopRightRadius: theme.radius.xl,
         },
-        tabBarActiveTintColor: '#ffffff',
-        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.55)',
+        tabBarActiveTintColor: theme.colors.emerald[500],
+        tabBarInactiveTintColor: theme.colors.text.tertiary,
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginBottom: Platform.OS === 'ios' ? 0 : 5,
+          fontSize: 11,
+          fontFamily: theme.typography.fontFamily.semiBold,
+          marginTop: 2,
         },
       }}
     >
@@ -27,15 +34,15 @@ export default function CollectorTabsLayout() {
         name="map"
         options={{
           title: 'Map',
-          tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons name="map-outline" size={24} color={color} />
-          ),
+        tabBarIcon: ({ color }) => (
+          <MaterialCommunityIcons name="map-marker-outline" size={24} color={color} />
+        ),
         }}
       />
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Listings',
+          title: 'Posts',
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="format-list-bulleted" size={24} color={color} />
           ),
@@ -44,9 +51,9 @@ export default function CollectorTabsLayout() {
       <Tabs.Screen
         name="my-pickups"
         options={{
-          title: 'My Pickups',
+          title: 'Collections',
           tabBarIcon: ({ color }) => (
-            <Feather name="list" size={24} color={color} />
+            <MaterialCommunityIcons name="package-variant-closed" size={24} color={color} />
           ),
         }}
       />
@@ -55,7 +62,7 @@ export default function CollectorTabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => (
-            <Feather name="user" size={24} color={color} />
+            <Feather name="user" size={22} color={color} />
           ),
         }}
       />

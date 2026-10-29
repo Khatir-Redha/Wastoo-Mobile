@@ -9,6 +9,7 @@ import PickupService, { Pickup } from '../../../../services/pickup.service';
 import { useAuth } from '../../../../context/AuthProvider';
 import NotificationBell from '../../../components/NotificationBell';
 import { theme } from '../../../theme/tokens';
+import { Button, Card, Input } from '../../../components/ui';
 
 export default function AvailablePickupsScreen() {
   const router = useRouter();
@@ -70,156 +71,164 @@ export default function AvailablePickupsScreen() {
     return matchSearch;
   });
 
-  return (
-    <SafeAreaView className="flex-1 bg-[#F7F8F6]" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
-      {/* Header */}
-      <View className="bg-white border-b border-[#ECECEC] px-5 pt-4 pb-3">
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-[20px] font-bold text-[#1b1c1c]">Nearby Pickups</Text>
+  const renderHeader = () => {
+    const firstName = user?.name?.split(' ')[0] || 'Collector';
+    return (
+      <View style={{ paddingHorizontal: theme.spacing.xl, paddingTop: Platform.OS === 'ios' ? 20 : 44, paddingBottom: theme.spacing.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: theme.typography.fontSize['2xl'].size, fontFamily: theme.typography.fontFamily.bold, color: theme.colors.text.primary, marginBottom: theme.spacing.xs }}>
+            Hello, {firstName}!
+          </Text>
+          <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary }}>
+            Available waste to collect
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <NotificationBell />
         </View>
+      </View>
+    );
+  };
 
-        {/* Search */}
-        <View className="flex-row items-center bg-[#F4F4F4] rounded-2xl px-4 h-[48px] mb-4">
-          <Feather name="search" size={18} color="#8A8F87" />
-          <TextInput
-            className="flex-1 text-[#1b1c1c] text-[15px] ml-2"
-            placeholder="Search pickup ID..."
-            placeholderTextColor="#B0B0B0"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x-circle" size={18} color="#B0B0B0" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Simple Category Filter */}
-        <View className="flex-wrap gap-2 mb-4 px-5">
-          {['All', 'PLASTIC', 'PAPER', 'METAL', 'GLASS', 'ORGANIC'].map(category => (
-            <TouchableOpacity
-              key={category}
-              onPress={() => setActiveCategory(category)}
-              className={`${activeCategory === category 
-                ? 'bg-[#1E5631] border-[#1E5631]' 
-                : 'bg-white border-[#ECECEC]'} 
-                px-4 py-2 rounded-full`}
-            >
-              <Text className={`${activeCategory === category 
-                ? 'text-white' 
-                : 'text-[#6D7A6E]'} 
-                font-medium text-[13px]`}>
-                {category === 'All' ? 'All' : category.charAt(0) + category.slice(1).toLowerCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.secondary }}>
+      {renderHeader()}
+      
+      <View style={{ marginHorizontal: theme.spacing.xl, marginBottom: theme.spacing.md }}>
+        <Input
+          placeholder="Search pickup ID..."
+          value={search}
+          onChangeText={setSearch}
+          icon="search"
+        />
       </View>
 
-      {/* List Content */}
+      <View style={{ marginBottom: theme.spacing.md, paddingBottom: theme.spacing.sm }}>
+        <Text style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginHorizontal: theme.spacing.xl, marginBottom: theme.spacing.md }}>
+          Categories
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.xl }}>
+          {['All', 'PLASTIC', 'PAPER', 'METAL', 'GLASS', 'ORGANIC'].map(category => {
+            const isActive = activeCategory === category;
+            return (
+              <TouchableOpacity
+                key={category}
+                onPress={() => setActiveCategory(category)}
+                style={{
+                  marginRight: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm,
+                  paddingHorizontal: theme.spacing.lg,
+                  borderRadius: theme.radius.md,
+                  backgroundColor: isActive ? theme.colors.emerald[500] : theme.colors.canvas.primary,
+                  borderWidth: isActive ? 0 : 1,
+                  borderColor: theme.colors.border.default,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  ...theme.shadows.sm,
+                }}
+              >
+                <Text style={{ fontSize: theme.typography.fontSize.md.size, color: isActive ? theme.colors.text.inverse : theme.colors.text.primary, fontFamily: theme.typography.fontFamily.medium }}>
+                  {category === 'All' ? 'All' : category.charAt(0) + category.slice(1).toLowerCase()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {!loading && !error && pickups.length === 0 ? (
-        <View className="flex-1 items-center justify-center mt-10">
-          <MaterialCommunityIcons name="truck-check-outline" size={48} color="#ECECEC" />
-          <Text className="text-[18px] font-bold text-[#1b1c1c] mt-3">No Pickups Available</Text>
-          <Text className="text-[14px] text-[#6D7A6E] text-center px-6 mt-1">
-            Check back later for new collection opportunities
-          </Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+          <View style={{ alignItems: 'center', paddingHorizontal: theme.spacing.xl }}>
+            <MaterialCommunityIcons name="truck-check-outline" size={64} color={theme.colors.mint[500]} />
+            <Text style={{ fontSize: theme.typography.fontSize.lg.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginTop: theme.spacing.lg, textAlign: 'center' }}>
+              No Pickups Available
+            </Text>
+            <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, marginTop: theme.spacing.sm, textAlign: 'center' }}>
+              Check back later for new collection opportunities
+            </Text>
+          </View>
         </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={item => item.id.toString()}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, flexGrow: 1 }}
+          contentContainerStyle={{ paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.md, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.emerald[500]} />}
-          ListEmptyComponent={() => null}
           renderItem={({ item }) => (
             <TouchableOpacity
               onPress={() => router.push(`/collector/pickup/${item.id}`)}
               activeOpacity={0.8}
-              className="mb-4"
+              style={{ marginBottom: theme.spacing.md }}
             >
-              <View className="bg-white border border-[#ECECEC] rounded-xl p-4"
-                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
-                <View className="flex-row items-center justify-between mb-2">
-                  <View className="flex-row items-center bg-[#E8F8EE] px-3 py-1.5 rounded-md">
-                    <MaterialCommunityIcons name="recycle" size={16} color="#1E5631" />
-                    <Text className="text-[13px] font-medium text-[#1E5631] ml-1">
-                      Post #{item.post_id}
+              <Card variant="elevated" style={{ borderRadius: theme.radius.xl }}>
+                <View style={{ padding: theme.spacing.md }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.emerald[50], paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, borderRadius: theme.radius.sm }}>
+                      <MaterialCommunityIcons name="recycle" size={16} color={theme.colors.emerald[500]} />
+                      <Text style={{ fontSize: theme.typography.fontSize.sm.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.emerald[500], marginLeft: theme.spacing.xs }}>
+                        Post #{item.post_id}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Feather name="map-pin" size={12} color={theme.colors.text.quaternary} />
+                      <Text style={{ marginLeft: theme.spacing.xs, fontSize: theme.typography.fontSize.sm.size, color: theme.colors.text.secondary }}>
+                        Nearby
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.xs }}>
+                    <Feather name="calendar" size={14} color={theme.colors.emerald[500]} />
+                    <Text style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.fontSize.base.size, color: theme.colors.text.primary }}>
+                      Flexible pickup
                     </Text>
                   </View>
-                  <View className="flex-row items-center">
-                    <Feather name="map-pin" size={14} color="#6D7A6E" />
-                    <Text className="text-[13px] font-medium text-[#6D7A6E] ml-0.5">
-                      Nearby
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
+                    <Feather name="clock" size={14} color={theme.colors.text.tertiary} />
+                    <Text style={{ marginLeft: theme.spacing.sm, fontSize: theme.typography.fontSize.base.size, color: theme.colors.text.secondary }}>
+                      Scheduled time TBD
                     </Text>
                   </View>
-                </View>
-                
-                <View className="flex-row items-center mb-2">
-                  <Feather name="calendar" size={14} color="#2ECC71" />
-                  <Text className="text-[13px] text-[#1b1c1c] ml-2">
-                    Flexible pickup
-                  </Text>
-                </View>
-                
-                <View className="flex-row items-center mb-2">
-                  <Feather name="clock" size={14} color="#2ECC71" />
-                  <Text className="text-[13px] text-[#6D7A6E] ml-2">
-                    Scheduled time TBD
-                  </Text>
-                </View>
-                
-                <View className="flex-col">
-                  <TouchableOpacity
+
+                  <Button
+                    title={!isVerified ? 'Verify to Accept' : 'Accept Pickup'}
+                    variant={!isVerified ? 'secondary' : 'primary'}
+                    size="md"
                     onPress={() => handleAccept(item)}
                     disabled={!isVerified}
-                    className={`w-full h-[48px] rounded-md flex items-center justify-center 
-                      ${!isVerified 
-                        ? 'bg-[#ECECEC]' 
-                        : 'bg-[#2ECC71]'} 
-                      border border-[${!isVerified 
-                        ? '#ECECEC' 
-                        : '#2ECC71'}]
-                    `}
-                  >
-                    {!isVerified ? (
-                      <Text className="text-[14px] font-medium text-[#6D7A6E]">
-                        Verify to Accept
-                      </Text>
-                    ) : (
-                      <Text className="text-[14px] font-medium text-white">
-                        Accept Pickup
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                    fullWidth
+                  />
                 </View>
-              </View>
+              </Card>
             </TouchableOpacity>
           )}
         />
       )}
-      
+
       {loading && (
-        <View className="flex-1 items-center justify-center mt-10">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
           <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-          <Text className="text-[14px] text-[#6D7A6E] mt-3">Loading pickups...</Text>
+          <Text style={{ marginTop: theme.spacing.md, fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary }}>Loading pickups...</Text>
         </View>
       )}
-      
+
       {error && (
-        <View className="flex-1 items-center justify-center mt-10 px-6">
-          <Feather name="wifi-off" size={48} color="#ECECEC" />
-          <Text className="text-[18px] font-bold text-[#1b1c1c] mt-3">Connection Error</Text>
-          <Text className="text-[14px] text-[#6D7A6E] text-center mt-1">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: theme.spacing.xl }}>
+          <Feather name="wifi-off" size={64} color={theme.colors.mint[500]} />
+          <Text style={{ fontSize: theme.typography.fontSize.lg.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary, marginTop: theme.spacing.lg, textAlign: 'center' }}>
+            Connection Error
+          </Text>
+          <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, marginTop: theme.spacing.sm, textAlign: 'center' }}>
             {error}
           </Text>
-          <TouchableOpacity onPress={fetchPickups} className="mt-4">
-            <View className="w-[120px] h-[40px] bg-[#2ECC71] rounded-md flex items-center justify-center">
-              <Text className="text-white font-medium">Retry</Text>
-            </View>
-          </TouchableOpacity>
+          <Button
+            title="Retry"
+            variant="primary"
+            size="md"
+            onPress={fetchPickups}
+            style={{ marginTop: theme.spacing.xl }}
+          />
         </View>
       )}
     </SafeAreaView>

@@ -4,6 +4,7 @@ import {
   UserLocation,
   type CameraRef,
 } from "@maplibre/maplibre-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   View,
   StyleSheet,
@@ -78,6 +79,7 @@ function getRouteBounds(
 }
 
 export default function CollectorMapScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const cameraRef = useRef<CameraRef>(null);
   const markerPressedRef = useRef(false);
