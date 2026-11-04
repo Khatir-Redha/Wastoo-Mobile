@@ -1,8 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import * as SecureStore from "expo-secure-store";
 import api from "../lib/api";
 import { appEvents, APP_EVENTS } from "../lib/appEvents";
-import { openGoogleOAuth } from "../services/google-auth.service";
+import {
+  exchangeGoogleOAuthCode,
+  openGoogleOAuth,
+} from "../services/google-auth.service";
 import { openFacebookOAuth } from "../services/facebook-auth.service";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
 
@@ -27,6 +36,7 @@ export type AuthContextType = {
   facebookLogin: () => Promise<void>;
   logout: () => Promise<void>;
   completeOAuthTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  completeGoogleOAuthCode: (code: string, state: string) => Promise<User>;
   sessionExpired: boolean;
   dismissSessionExpired: () => void;
 };
@@ -38,6 +48,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
   const { initPushNotifications } = usePushNotifications();
+  const googleOAuthExchanges = useRef(new Map<string, Promise<User>>());
+  const completedGoogleOAuthCodes = useRef(new Map<string, User>());
 
   useEffect(() => {
     hydrateAuthSession();
@@ -63,14 +75,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const fetchProfile = async (token: string) => {
+  const fetchProfile = async (token: string): Promise<User> => {
     try {
       const res = await api.get("/user", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      setUser(res.data);
+      const profile: User = res.data;
+      setUser(profile);
+      return profile;
     } catch (error) {
       console.error("Failed to fetch user profile:", error);
       await cleanupAuth();
@@ -122,19 +136,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await fetchProfile(accessToken);
   };
 
+  const completeGoogleOAuthCode = async (
+    code: string,
+    state: string,
+  ): Promise<User> => {
+    const completed = completedGoogleOAuthCodes.current.get(code);
+    if (completed) return completed;
+
+    const pending = googleOAuthExchanges.current.get(code);
+    if (pending) return pending;
+
+    const exchange = (async () => {
+      const tokens = await exchangeGoogleOAuthCode(code, state);
+      await SecureStore.setItemAsync("access_token", tokens.accessToken);
+      await SecureStore.setItemAsync("refresh_token", tokens.refreshToken);
+      return fetchProfile(tokens.accessToken);
+    })();
+
+    googleOAuthExchanges.current.set(code, exchange);
+    try {
+      const profile = await exchange;
+      completedGoogleOAuthCodes.current.clear();
+      completedGoogleOAuthCodes.current.set(code, profile);
+      return profile;
+    } finally {
+      googleOAuthExchanges.current.delete(code);
+    }
+  };
+
   /**
-   * Initiates the Google OAuth flow via the backend.
-   * Opens a system browser → user signs in with Google → backend redirects back
-   * to the app deep link with tokens as query params → we save them and fetch profile.
+   * Completes Google authentication through a single-use backend code.
    */
   const googleLogin = async () => {
-    const tokens = await openGoogleOAuth();
+    const callback = await openGoogleOAuth();
 
-    if (!tokens) {
+    if (!callback) {
       throw new Error("Google sign-in was cancelled or failed.");
     }
 
-    await completeOAuthTokens(tokens.accessToken, tokens.refreshToken);
+    await completeGoogleOAuthCode(callback.code, callback.state);
   };
 
   const facebookLogin = async () => {
@@ -183,6 +223,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         facebookLogin,
         logout,
         completeOAuthTokens,
+        completeGoogleOAuthCode,
         sessionExpired,
         dismissSessionExpired,
       }}

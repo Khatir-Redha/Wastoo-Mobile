@@ -23,7 +23,17 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "wastoo",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
           "data": [
             {
               "scheme": "wastoo",
@@ -31,10 +41,7 @@
               "pathPrefix": "/oauth-callback"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },

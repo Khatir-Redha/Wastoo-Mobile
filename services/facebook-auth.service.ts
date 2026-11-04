@@ -1,22 +1,9 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { API_URL } from "../lib/api";
 
 // Register the browser redirect handler for Expo Go / dev builds
 WebBrowser.maybeCompleteAuthSession();
-
-const hostUri = Constants.expoConfig?.hostUri;
-const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
-
-let resolvedApiUrl = `http://${localIP}:5000`;
-if (Platform.OS === 'android' && !Constants.isDevice) {
-  resolvedApiUrl = "http://localhost:5000";
-} else if (Platform.OS === 'ios' && !Constants.isDevice) {
-  resolvedApiUrl = "http://127.0.0.1:5000";
-}
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
 
 export const OAUTH_CALLBACK_SCHEME = "wastoo";
 export const OAUTH_CALLBACK_PATH = "auth/oauth-callback";

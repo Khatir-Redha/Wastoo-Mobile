@@ -2,30 +2,27 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { appEvents, APP_EVENTS } from "./appEvents";
 
-import { Platform } from "react-native";
-import Constants from "expo-constants";
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-// Dynamically get the IP address of the machine running the Expo bundler
-const hostUri = Constants.expoConfig?.hostUri;
-const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
-
-// Determine the API URL based on the environment
-let resolvedApiUrl = `http://${localIP}:5000`;
-if (Platform.OS === 'android' && Constants.isDevice === false) {
-  // We are explicitly on an Android Emulator.
-  // 10.0.2.2 bypasses the firewall and securely routes to localhost.
-  resolvedApiUrl = "http://10.0.2.2:5000";
-} else if (Platform.OS === 'ios' && Constants.isDevice === false) {
-  resolvedApiUrl = "http://127.0.0.1:5000";
-} else {
-  // Physical device or undefined isDevice: use detected local IP or placeholder
-  resolvedApiUrl = hostUri ? `http://${localIP}:5000` : "http://YOUR_COMPUTER_IP:5000";
+if (!configuredApiUrl) {
+  throw new Error(
+    "EXPO_PUBLIC_API_URL must be set to the HTTPS Wastoo API URL.",
+  );
 }
 
-// Use an environment variable for production, fallback to dynamic local IP for dev
-const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
-console.log(`[API] Resolved API_URL: ${API_URL}`);
-console.log(`[API] Platform: ${Platform.OS}, isDevice: ${Constants.isDevice}`);
+const parsedApiUrl = new URL(configuredApiUrl);
+if (
+  parsedApiUrl.protocol !== "https:" ||
+  ["localhost", "127.0.0.1", "::1", "10.0.2.2"].includes(
+    parsedApiUrl.hostname.toLowerCase(),
+  )
+) {
+  throw new Error(
+    "EXPO_PUBLIC_API_URL must use a public HTTPS host, not a localhost or emulator address.",
+  );
+}
+
+export const API_URL = configuredApiUrl.replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: API_URL,
