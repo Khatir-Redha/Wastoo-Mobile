@@ -17,6 +17,8 @@ interface PostPreviewCardProps {
   onViewDetails: (postId: number) => void;
   onGetDirections?: (post: MapPostsResponse) => void;
   isLoadingRoute?: boolean;
+  onDismiss?: () => void;
+  bottomOffset?: number;
 }
 
 export default function PostPreviewCard({
@@ -25,29 +27,48 @@ export default function PostPreviewCard({
   onViewDetails,
   onGetDirections,
   isLoadingRoute = false,
+  onDismiss,
+  bottomOffset = 16,
 }: PostPreviewCardProps) {
   const getCategoryLabel = (value?: WasteCategory) => {
     if (value === undefined) return "Waste";
     return WasteCategory[value] ?? "Waste";
   };
 
-  const isFree = true; // In civil post map, materials are typically free pickup
-  const imageUri = post.image || "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80";
+  const statusColor =
+    post.status === PostStatus.OPEN
+      ? theme.colors.success
+      : post.status === PostStatus.CLAIMED
+        ? theme.colors.warning
+        : "#9CA3AF";
+  const imageUri = post.image;
 
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { bottom: bottomOffset }]}>
+      <View style={styles.grabber} />
       <View style={styles.contentRow}>
         {/* Post thumbnail */}
-        <Image
-          source={{ uri: imageUri }}
-          style={styles.thumbnail}
-          contentFit="cover"
-        />
+        {imageUri ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.thumbnail}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <View style={styles.thumbnailFallback}>
+            <MaterialCommunityIcons
+              name="recycle"
+              size={26}
+              color={theme.colors.emerald[600]}
+            />
+          </View>
+        )}
 
         {/* Post details */}
         <View style={styles.detailsCol}>
           <View style={styles.headerRow}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title} numberOfLines={2}>
               {post.title || "Recyclable Material"}
             </Text>
             <View style={styles.categoryBadge}>
@@ -59,7 +80,7 @@ export default function PostPreviewCard({
 
           {/* Status & distance */}
           <View style={styles.metaRow}>
-            <View style={styles.statusDot} />
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             <Text style={styles.statusText}>
               {post.status === PostStatus.OPEN ? "Available for pickup" : "Updated"}
             </Text>
@@ -70,12 +91,24 @@ export default function PostPreviewCard({
             <Text style={styles.distanceText}>{distanceText}</Text>
           </View>
         </View>
+        {onDismiss ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss selected post"
+            onPress={onDismiss}
+            hitSlop={8}
+            style={styles.dismissButton}
+          >
+            <Feather name="x" size={18} color={theme.colors.text.tertiary} />
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Action Buttons: Directions (primary) + View Details */}
       <View style={styles.actionsRow}>
         {onGetDirections && (
           <Pressable
+            accessibilityRole="button"
             style={[styles.directionsButton, isLoadingRoute && styles.buttonDisabled]}
             onPress={() => onGetDirections(post)}
             disabled={isLoadingRoute}
@@ -96,6 +129,7 @@ export default function PostPreviewCard({
         )}
 
         <Pressable
+          accessibilityRole="button"
           style={styles.detailsButton}
           onPress={() => onViewDetails(post.id)}
         >
@@ -112,47 +146,69 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 92,
-    backgroundColor: theme.colors.canvas.primary,
-    borderRadius: theme.radius.xl,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    ...theme.shadows.xl,
+    borderColor: "#E6EEE9",
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
     elevation: 8,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 34,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#DCE6E0",
+    marginBottom: 12,
   },
   contentRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   thumbnail: {
-    width: 68,
-    height: 68,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.canvas.tertiary,
+    width: 76,
+    height: 76,
+    borderRadius: 13,
+    backgroundColor: "#EEF5F1",
+  },
+  thumbnailFallback: {
+    width: 76,
+    height: 76,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.emerald[50],
   },
   detailsCol: {
     flex: 1,
+    minHeight: 76,
     marginLeft: 12,
   },
   headerRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
+    alignItems: "flex-start",
+    marginBottom: 6,
   },
   title: {
     fontSize: theme.typography.fontSize.md.size,
     fontFamily: theme.typography.fontFamily.semiBold,
-    color: theme.colors.text.primary,
+    color: theme.colors.forest[500],
     flex: 1,
-    marginRight: 6,
+    marginRight: 8,
+    lineHeight: 20,
   },
   categoryBadge: {
-    backgroundColor: theme.colors.emerald[50],
+    backgroundColor: "#EAF6F0",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexShrink: 0,
   },
   categoryBadgeText: {
     color: theme.colors.emerald[700],
@@ -187,14 +243,21 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
     color: theme.colors.emerald[600],
   },
+  dismissButton: {
+    width: 30,
+    height: 30,
+    marginLeft: 4,
+    marginTop: -3,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: "#F5F8F6",
+  },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
+    marginTop: 14,
   },
   directionsButton: {
     flex: 1,
@@ -202,8 +265,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.emerald[500],
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 46,
     gap: 6,
     ...theme.shadows.sm,
   },
@@ -221,8 +284,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.canvas.secondary,
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 46,
     gap: 4,
   },
   detailsButtonText: {

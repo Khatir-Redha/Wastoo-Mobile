@@ -9,6 +9,8 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -118,6 +120,8 @@ export default function PostsAndMapScreen() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
   const [mapSearchText, setMapSearchText] = useState("");
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [draftCategory, setDraftCategory] = useState<WasteCategory | "ALL">("ALL");
 
   const [selectedPost, setSelectedPost] = useState<MapPostsResponse | null>(null);
   const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
@@ -385,9 +389,18 @@ export default function PostsAndMapScreen() {
 
   // ── Header Segment Control ──────────────────────────────────────
   const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
+    <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Posts & Map</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>Posts & Map</Text>
+          <Text style={styles.headerSubtitle}>
+            {viewMode === "map"
+              ? location
+                ? "Nearby materials and recycling centers"
+                : "Explore materials around Algeria"
+              : "Find your next reusable resource"}
+          </Text>
+        </View>
         <View style={styles.headerActions}>
           <BadgesButton />
           <NotificationBell />
@@ -398,6 +411,8 @@ export default function PostsAndMapScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setViewMode("posts")}
+          accessibilityRole="button"
+          accessibilityState={{ selected: viewMode === "posts" }}
           style={[
             styles.segmentItem,
             viewMode === "posts" && styles.segmentItemActive,
@@ -425,6 +440,8 @@ export default function PostsAndMapScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setViewMode("map")}
+          accessibilityRole="button"
+          accessibilityState={{ selected: viewMode === "map" }}
           style={[
             styles.segmentItem,
             viewMode === "map" && styles.segmentItemActive,
@@ -630,7 +647,7 @@ export default function PostsAndMapScreen() {
             attribution
             logo={false}
             compass
-            compassPosition={{ top: 120, right: 16 }}
+            compassPosition={{ top: 178, right: 16 }}
             onDidFinishLoadingMap={() => setMapReady(true)}
             onDidFailLoadingMap={() => {
               console.warn("MapTiler map style failed to load.");
@@ -747,38 +764,30 @@ export default function PostsAndMapScreen() {
           </View>
         )}
 
-        {(location || isLocating) && (
-          <View
-            style={[
-              styles.locationBadge,
-              locationIssue && styles.locationBadgeAfterError,
-            ]}
-          >
-            {location ? (
-              <Text style={styles.locationBadgeText}>
-                {isLocating || locationIssue === "unavailable"
-                  ? "Last known"
-                  : "GPS"}{" "}
-                {location.coords.latitude.toFixed(5)},{" "}
-                {location.coords.longitude.toFixed(5)}
-                {location.coords.accuracy != null
-                  ? ` · ±${Math.round(location.coords.accuracy)} m`
-                  : ""}
-              </Text>
-            ) : (
-              <>
-                <ActivityIndicator
-                  size="small"
-                  color={theme.colors.emerald[600]}
-                />
-                <Text style={styles.locationBadgeText}>Locating device…</Text>
-              </>
-            )}
+        {__DEV__ && location && !locationIssue && (
+          <View style={[styles.debugLocation, { top: 108 }]}>
+            <Text style={styles.debugLocationText}>
+              GPS {location.coords.latitude.toFixed(5)},{" "}
+              {location.coords.longitude.toFixed(5)}
+              {location.coords.accuracy != null
+                ? ` · ±${Math.round(location.coords.accuracy)} m`
+                : ""}
+            </Text>
           </View>
         )}
 
         {locationIssue && (
-          <View style={styles.locationErrorBanner}>
+          <View
+            style={[
+              styles.locationErrorBanner,
+              mapLoadError && { top: 190 },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-alert-outline"
+              size={20}
+              color="#9B5B12"
+            />
             <Text style={styles.locationErrorText}>
               {getLocationIssueMessage(locationIssue, Boolean(location))}
             </Text>
@@ -804,47 +813,72 @@ export default function PostsAndMapScreen() {
           </View>
         )}
 
-        {/* Floating Top Search Bar (Google Maps style) */}
-          <View style={styles.floatingTopContainer}>
-            <View style={styles.floatingSearchBar}>
+        <View style={styles.floatingTopContainer}>
+          <View style={styles.floatingSearchBar}>
+            <Feather
+              name="search"
+              size={18}
+              color={theme.colors.emerald[600]}
+            />
+            <TextInput
+              accessibilityLabel="Search posts, centers, and materials"
+              style={styles.floatingSearchInput}
+              placeholder="Search posts, centers, materials..."
+              placeholderTextColor={theme.colors.text.tertiary}
+              value={mapSearchText}
+              onChangeText={setMapSearchText}
+              returnKeyType="search"
+            />
+            {mapSearchText.length > 0 && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Clear map search"
+                onPress={() => setMapSearchText("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather
+                  name="x-circle"
+                  size={16}
+                  color={theme.colors.text.tertiary}
+                />
+              </TouchableOpacity>
+            )}
+            <View style={styles.searchDivider} />
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Open material filters"
+              onPress={() => {
+                setDraftCategory(category);
+                setFiltersVisible(true);
+              }}
+              style={styles.filterButton}
+              activeOpacity={0.75}
+            >
               <Feather
-                name="search"
+                name="sliders"
                 size={18}
                 color={theme.colors.emerald[600]}
               />
-              <TextInput
-                style={styles.floatingSearchInput}
-                placeholder="Search posts, centers, materials..."
-                placeholderTextColor={theme.colors.text.tertiary}
-                value={mapSearchText}
-                onChangeText={setMapSearchText}
-              />
-              {mapSearchText.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setMapSearchText("")}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather
-                    name="x-circle"
-                    size={16}
-                    color={theme.colors.text.tertiary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Horizontal Filter Chips */}
-            <MapFilterBar
-              categories={categories}
-              selectedCategory={category}
-              onSelectCategory={setCategory}
-              topOffset={54}
-            />
+            </TouchableOpacity>
           </View>
 
-          {/* Floating Right Controls: Recenter Location (GPS) */}
-          <View style={styles.floatingControlsRight}>
+          <MapFilterBar
+            categories={categories}
+            selectedCategory={category}
+            onSelectCategory={setCategory}
+            topOffset={64}
+          />
+        </View>
+
+          <View
+            style={[
+              styles.floatingControlsRight,
+              { top: locationIssue ? 190 : 122 },
+            ]}
+          >
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Recenter map on my location"
               style={styles.recenterButton}
               onPress={() => void handleRecenter()}
               activeOpacity={0.8}
@@ -862,30 +896,33 @@ export default function PostsAndMapScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Floating Bottom Left: Expandable Radius Filter */}
           <MapRadiusSlider
             radius={radius}
             loadingPosts={loadingPosts}
             onRadiusChange={setRadius}
-            style={{ bottom: activeRoute || selectedPost || selectedCenter ? 260 : 32 }}
+            style={{
+              bottom: selectedPost || selectedCenter || activeRoute ? 190 : 12,
+            }}
           />
 
-          {/* Bottom Sheet Card: Post Preview */}
           {selectedPost && !activeRoute && (
             <PostPreviewCard
               post={selectedPost}
               distanceText={getDistanceText(selectedPost)}
+              onDismiss={() => setSelectedPost(null)}
+              bottomOffset={12}
               onViewDetails={(postId) => router.push(`/citizen/${postId}`)}
               onGetDirections={() => handleGetDirections(selectedPost, "post")}
               isLoadingRoute={calculatingRoute}
             />
           )}
 
-          {/* Bottom Sheet Card: Waste Center Preview */}
           {selectedCenter && !activeRoute && (
             <CenterPreviewCard
               center={selectedCenter}
               distanceText={getDistanceText(selectedCenter)}
+              onDismiss={() => setSelectedCenter(null)}
+              bottomOffset={12}
               onViewDetails={(centerId) => console.log("View center", centerId)}
               onGetDirections={() =>
                 handleGetDirections(selectedCenter, "center")
@@ -905,6 +942,117 @@ export default function PostsAndMapScreen() {
               loading={calculatingRoute}
             />
           )}
+
+          <Modal
+            visible={filtersVisible}
+            transparent
+            animationType="slide"
+            statusBarTranslucent
+            onRequestClose={() => setFiltersVisible(false)}
+          >
+            <View style={styles.filterModalRoot}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close filters"
+                style={styles.filterModalScrim}
+                onPress={() => setFiltersVisible(false)}
+              />
+              <View
+                style={[
+                  styles.filterSheet,
+                  { paddingBottom: Math.max(insets.bottom, 20) },
+                ]}
+              >
+                <View style={styles.sheetHandle} />
+                <View style={styles.filterSheetHeader}>
+                  <View>
+                    <Text style={styles.filterSheetTitle}>Material filters</Text>
+                    <Text style={styles.filterSheetSubtitle}>
+                      Choose a category to refine nearby posts
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setDraftCategory("ALL")}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.clearFiltersText}>Clear</Text>
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={styles.filterOptions}
+                  contentContainerStyle={styles.filterOptionsContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {categories.map((item) => {
+                    const selected = draftCategory === item;
+                    const label =
+                      String(item).toLowerCase() === "all"
+                        ? "All materials"
+                        : `${String(item).charAt(0)}${String(item)
+                            .slice(1)
+                            .toLowerCase()}`;
+                    return (
+                      <Pressable
+                        key={String(item)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
+                        onPress={() => setDraftCategory(item)}
+                        style={[
+                          styles.filterOption,
+                          selected && styles.filterOptionSelected,
+                        ]}
+                      >
+                        <View style={styles.filterOptionLeft}>
+                          <MaterialCommunityIcons
+                            name={
+                              selected ? "check-circle" : "circle-outline"
+                            }
+                            size={20}
+                            color={
+                              selected
+                                ? theme.colors.emerald[600]
+                                : theme.colors.text.tertiary
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.filterOptionText,
+                              selected && styles.filterOptionTextSelected,
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                        </View>
+                        {selected && (
+                          <Text style={styles.selectedLabel}>Selected</Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.filterActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setFiltersVisible(false)}
+                    style={styles.filterCancelButton}
+                  >
+                    <Text style={styles.filterCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setCategory(draftCategory);
+                      setFiltersVisible(false);
+                    }}
+                    style={styles.filterApplyButton}
+                  >
+                    <Text style={styles.filterApplyText}>Show results</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
       </>
     </View>
   );
@@ -939,50 +1087,58 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
   },
   header: {
-    paddingHorizontal: theme.spacing.xl,
-    paddingBottom: theme.spacing.md,
-    backgroundColor: theme.colors.canvas.secondary,
+    paddingHorizontal: 18,
+    paddingBottom: 6,
+    backgroundColor: "#FFFFFF",
     zIndex: 20,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: theme.spacing.md,
+    marginBottom: 5,
+  },
+  headerCopy: {
+    flex: 1,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: theme.typography.fontSize["3xl"].size,
+    fontSize: 21,
     fontFamily: theme.typography.fontFamily.bold,
-    color: theme.colors.text.primary,
+    color: theme.colors.forest[500],
+  },
+  headerSubtitle: {
+    marginTop: 1,
+    color: "#718078",
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.regular,
   },
   segment: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.colors.canvas.primary,
-    borderRadius: theme.radius.full,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    padding: 4,
-    gap: 4,
+    backgroundColor: "#F1F6F3",
+    borderRadius: 13,
+    padding: 3,
+    gap: 3,
   },
   segmentItem: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    height: 42,
-    borderRadius: theme.radius.full,
+    minHeight: 34,
+    borderRadius: 10,
   },
   segmentItemActive: {
-    backgroundColor: theme.colors.emerald[500],
+    backgroundColor: theme.colors.forest[500],
+    ...theme.shadows.sm,
   },
   segmentText: {
     marginLeft: theme.spacing.xs,
-    fontSize: theme.typography.fontSize.base.size,
+    fontSize: 13,
     fontFamily: theme.typography.fontFamily.semiBold,
     color: theme.colors.text.tertiary,
   },
@@ -1144,43 +1300,61 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: theme.colors.canvas.primary,
-    borderRadius: theme.radius.xl,
-    paddingHorizontal: 16,
+    borderRadius: 15,
+    paddingLeft: 14,
+    paddingRight: 5,
     height: 48,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    ...theme.shadows.lg,
-    elevation: 6,
-    gap: 10,
+    borderColor: "#E5ECE8",
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    gap: 9,
   },
   floatingSearchInput: {
     flex: 1,
-    fontSize: theme.typography.fontSize.md.size,
+    minWidth: 0,
+    fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.text.primary,
+    color: theme.colors.forest[500],
+  },
+  searchDivider: {
+    width: 1,
+    height: 24,
+    marginHorizontal: 2,
+    backgroundColor: "#E8EEEB",
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#F0F7F3",
   },
   floatingControlsRight: {
     position: "absolute",
     right: 16,
-    top: 130,
     zIndex: 10,
     gap: 10,
   },
   recenterButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: theme.colors.canvas.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
+    borderColor: "#E5ECE8",
     ...theme.shadows.md,
     elevation: 5,
   },
   mapErrorBanner: {
     position: "absolute",
-    top: 76,
+    top: 108,
     left: 16,
     right: 16,
     zIndex: 11,
@@ -1191,30 +1365,34 @@ const styles = StyleSheet.create({
   },
   locationErrorBanner: {
     position: "absolute",
-    top: 110,
+    top: 108,
     left: 16,
-    right: 72,
+    right: 16,
     zIndex: 12,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 9,
     padding: 12,
-    borderRadius: theme.radius.md,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.error[500],
-    backgroundColor: theme.colors.canvas.primary,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#F2E3C4",
+    backgroundColor: "#FFF9EC",
     ...theme.shadows.md,
   },
   locationErrorText: {
     flex: 1,
-    color: theme.colors.text.primary,
+    color: theme.colors.forest[500],
     fontSize: theme.typography.fontSize.xs.size,
+    lineHeight: 16,
     fontFamily: theme.typography.fontFamily.medium,
   },
   locationRetryButton: {
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: theme.radius.sm,
+    minHeight: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: theme.colors.emerald[500],
   },
   locationRetryText: {
@@ -1222,26 +1400,139 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize.xs.size,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
-  locationBadge: {
+  debugLocation: {
     position: "absolute",
     left: 16,
-    top: 112,
     zIndex: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.88)",
+  },
+  debugLocationText: {
+    color: theme.colors.forest[500],
+    fontSize: 9,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  filterModalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  filterModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(16, 34, 29, 0.38)",
+  },
+  filterSheet: {
+    maxHeight: "76%",
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...theme.shadows.xl,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D8E2DD",
+    marginBottom: 20,
+  },
+  filterSheetHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.canvas.primary,
-    ...theme.shadows.sm,
+    justifyContent: "space-between",
+    marginBottom: 16,
   },
-  locationBadgeAfterError: {
-    top: 190,
+  filterSheetTitle: {
+    color: theme.colors.forest[500],
+    fontSize: theme.typography.fontSize.xl.size,
+    fontFamily: theme.typography.fontFamily.bold,
   },
-  locationBadgeText: {
-    color: theme.colors.text.primary,
-    fontSize: 11,
+  filterSheetSubtitle: {
+    marginTop: 3,
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  clearFiltersText: {
+    color: theme.colors.emerald[600],
+    fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterOptions: {
+    flexShrink: 1,
+  },
+  filterOptionsContent: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  filterOption: {
+    minHeight: 48,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#E8EEEB",
+    borderRadius: 12,
+  },
+  filterOptionSelected: {
+    borderColor: "#A8D9C4",
+    backgroundColor: "#F1F8F4",
+  },
+  filterOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  filterOptionText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  filterOptionTextSelected: {
+    color: theme.colors.forest[500],
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  selectedLabel: {
+    color: theme.colors.emerald[700],
+    fontSize: 10,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF2EF",
+  },
+  filterCancelButton: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E3EAE6",
+    borderRadius: 12,
+  },
+  filterCancelText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterApplyButton: {
+    flex: 1.4,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: theme.colors.emerald[500],
+  },
+  filterApplyText: {
+    color: "#FFFFFF",
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.bold,
   },
 });

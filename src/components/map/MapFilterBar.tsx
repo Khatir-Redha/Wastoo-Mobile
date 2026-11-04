@@ -44,7 +44,10 @@ export default function MapFilterBar({
   topOffset = 16,
 }: MapFilterBarProps) {
   return (
-    <View style={[styles.chipsWrapper, { top: topOffset }]}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.chipsWrapper, { top: topOffset }]}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -90,32 +93,37 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    zIndex: 10,
+    zIndex: 20,
+    elevation: 8,
   },
   chipsContainer: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 7,
     alignItems: "center",
   },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: theme.radius.full,
-    gap: 6,
-    ...theme.shadows.md,
-    elevation: 4,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radius.md,
+    gap: 5,
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 3,
   },
   unselectedChip: {
-    backgroundColor: theme.colors.canvas.primary,
+    backgroundColor: "rgba(255,255,255,0.96)",
     borderWidth: 1,
-    borderColor: theme.colors.border.default,
+    borderColor: "#E3ECE7",
   },
   selectedChip: {
     backgroundColor: theme.colors.emerald[500],
     borderWidth: 1,
-    borderColor: theme.colors.emerald[600],
+    borderColor: theme.colors.emerald[500],
   },
   chipText: {
     fontSize: theme.typography.fontSize.sm.size,
