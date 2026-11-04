@@ -31,6 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
+!.env.example
 .env*.local
 
 # typescript
@@ -41,6 +44,10 @@ example
 # generated native folders
 /ios
 /android
+**/.gradle/
+**/build/
+*.apk
+*.aab
 
 # service files
 google-services.json

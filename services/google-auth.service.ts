@@ -1,85 +1,130 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
+import axios from "axios";
+import * as Crypto from "expo-crypto";
+import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import { API_URL } from "../lib/api";
 
-// Register the browser redirect handler for Expo Go / dev builds
 WebBrowser.maybeCompleteAuthSession();
 
-const hostUri = Constants.expoConfig?.hostUri;
-const localIP = hostUri ? hostUri.split(":")[0] : "192.168.96.116";
-
-// Determine the API URL based on the environment
-// Determine the API URL based on the environment
-let resolvedApiUrl = `http://${localIP}:5000`;
-if (Platform.OS === 'android' && Constants.isDevice === false) {
-  resolvedApiUrl = "http://10.0.2.2:5000";
-} else if (Platform.OS === 'ios' && Constants.isDevice === false) {
-  resolvedApiUrl = "http://127.0.0.1:5000";
-} else {
-  resolvedApiUrl = hostUri ? `http://${localIP}:5000` : "http://YOUR_COMPUTER_IP:5000";
-}
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || resolvedApiUrl;
-
-// The deep-link URL the backend must redirect to after OAuth success.
-// Matches the `wastoo://` scheme defined in app.json
 export const OAUTH_CALLBACK_SCHEME = "wastoo";
-export const OAUTH_CALLBACK_PATH = "auth/oauth-callback";
+export const OAUTH_CALLBACK_PATH = "auth/callback";
+export const OAUTH_CALLBACK_URL = `${OAUTH_CALLBACK_SCHEME}://${OAUTH_CALLBACK_PATH}`;
+
+const STATE_KEY = "google_oauth_state";
+const VERIFIER_KEY = "google_oauth_verifier";
+
+const randomHex = async (size: number) =>
+  Array.from(await Crypto.getRandomBytesAsync(size))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 
 /**
- * Opens the backend Google OAuth flow in the system browser.
- *
- * Flow:
- *  1. App opens  GET /auth/google?state=mobile  in a browser tab.
- *  2. User signs in with Google.
- *  3. Backend validates, creates JWT tokens, and redirects to:
- *       wastoo://auth/oauth-callback?accessToken=<TOKEN>&refreshToken=<RTOKEN>
- *  4. Expo intercepts the deep-link and WebBrowser.openAuthSessionAsync resolves.
- *  5. We parse the URL and return the tokens to the caller.
- *
- * IMPORTANT: In your backend .env set:
- *   MOBILE_URL=wastoo://
- * And update the callback to append tokens as query params:
- *   res.redirect(`${mobileUrl}auth/oauth-callback?accessToken=${token.accessToken}&refreshToken=${token.refreshToken}`);
+ * Opens Google's backend-mediated OAuth flow. Only a short-lived code and
+ * state are returned through the app link; the verifier remains in SecureStore.
  */
 export async function openGoogleOAuth(): Promise<{
-  accessToken: string;
-  refreshToken: string;
+  code: string;
+  state: string;
 } | null> {
-  // The redirect URI that the backend should send the user back to
-  const redirectUri = Linking.createURL(OAUTH_CALLBACK_PATH);
+  const state = await randomHex(32);
+  const verifier = await randomHex(32);
+  const challenge = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: Crypto.CryptoEncoding.HEX },
+  );
 
-  // The backend OAuth start URL – pass state=mobile so the backend sets a cookie
-  // and routes back to the mobile deep-link instead of the web frontend.
-  const authUrl = `${API_URL}/auth/google?state=mobile`;
+  await SecureStore.setItemAsync(STATE_KEY, state);
+  await SecureStore.setItemAsync(VERIFIER_KEY, verifier);
 
   try {
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+    const authUrl =
+      `${API_URL}/auth/google?client=mobile` +
+      `&state=${encodeURIComponent(state)}` +
+      `&code_challenge=${encodeURIComponent(challenge)}`;
+    const result = await WebBrowser.openAuthSessionAsync(
+      authUrl,
+      OAUTH_CALLBACK_URL,
+    );
 
     if (result.type !== "success") {
-      // User cancelled or an error occurred in the browser
+      await clearPendingGoogleOAuth();
       return null;
     }
 
-    // Parse query params from the returned deep-link URL
     const parsed = Linking.parse(result.url);
     const params = parsed.queryParams as Record<string, string> | undefined;
+    const code = params?.code;
+    const returnedState = params?.state;
 
-    const accessToken = params?.accessToken;
-    const refreshToken = params?.refreshToken;
+    if (
+      parsed.scheme !== OAUTH_CALLBACK_SCHEME ||
+      parsed.hostname !== "auth" ||
+      parsed.path !== "callback" ||
+      typeof code !== "string" ||
+      typeof returnedState !== "string" ||
+      returnedState !== state
+    ) {
+      await clearPendingGoogleOAuth();
+      throw new Error("Google sign-in returned an invalid callback.");
+    }
 
-    if (!accessToken || !refreshToken) {
-      console.error(
-        "[GoogleOAuth] Callback URL missing tokens. Received URL:",
-        result.url
+    return { code, state: returnedState };
+  } catch (error) {
+    await clearPendingGoogleOAuth();
+    throw error;
+  }
+}
+
+export async function exchangeGoogleOAuthCode(
+  code: string,
+  state: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const [expectedState, verifier] = await Promise.all([
+    SecureStore.getItemAsync(STATE_KEY),
+    SecureStore.getItemAsync(VERIFIER_KEY),
+  ]);
+
+  if (
+    !expectedState ||
+    expectedState !== state ||
+    !verifier ||
+    !/^[a-f0-9]{64}$/.test(code)
+  ) {
+    await clearPendingGoogleOAuth();
+    throw new Error("This Google sign-in link is invalid or has expired.");
+  }
+
+  try {
+    const response = await axios.post(
+      `${API_URL}/auth/google/exchange`,
+      { code, state, codeVerifier: verifier },
+      { timeout: 10000 },
+    );
+
+    const accessToken = response.data?.accessToken;
+    const refreshToken = response.data?.refreshToken;
+    if (
+      typeof accessToken !== "string" ||
+      typeof refreshToken !== "string" ||
+      !accessToken ||
+      !refreshToken
+    ) {
+      throw new Error(
+        "The server returned an invalid Google sign-in response.",
       );
-      return null;
     }
 
     return { accessToken, refreshToken };
-  } catch (error) {
-    console.error("[GoogleOAuth] Failed to open auth session:", error);
-    return null;
+  } finally {
+    await clearPendingGoogleOAuth();
   }
+}
+
+export async function clearPendingGoogleOAuth() {
+  await Promise.all([
+    SecureStore.deleteItemAsync(STATE_KEY),
+    SecureStore.deleteItemAsync(VERIFIER_KEY),
+  ]);
 }

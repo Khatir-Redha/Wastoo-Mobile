@@ -6,6 +6,7 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
+import { Image } from "expo-image";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MapPickupResponse } from "../../../services/map.service";
 import { theme } from "../../theme/tokens";
@@ -16,6 +17,8 @@ interface PickupPreviewCardProps {
   onViewDetails: (pickupId: number) => void;
   onGetDirections?: (pickup: MapPickupResponse) => void;
   isLoadingRoute?: boolean;
+  onDismiss?: () => void;
+  bottomOffset?: number;
 }
 
 const formatStatus = (status?: string) =>
@@ -29,21 +32,35 @@ export default function PickupPreviewCard({
   onViewDetails,
   onGetDirections,
   isLoadingRoute = false,
+  onDismiss,
+  bottomOffset = 16,
 }: PickupPreviewCardProps) {
+  const imageUri = pickup.post?.image;
+
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { bottom: bottomOffset }]}>
+      <View style={styles.grabber} />
       <View style={styles.contentRow}>
-        <View style={styles.iconBadge}>
-          <MaterialCommunityIcons
-            name="truck-delivery"
-            size={26}
-            color={theme.colors.emerald[600]}
+        {imageUri ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.thumbnail}
+            contentFit="cover"
+            transition={150}
           />
-        </View>
+        ) : (
+          <View style={styles.thumbnailFallback}>
+            <MaterialCommunityIcons
+              name="recycle"
+              size={26}
+              color={theme.colors.emerald[600]}
+            />
+          </View>
+        )}
 
         <View style={styles.detailsCol}>
           <View style={styles.headerRow}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title} numberOfLines={2}>
               {pickup.post?.title || `Pickup #${pickup.id}`}
             </Text>
             <View style={styles.statusBadge}>
@@ -53,17 +70,31 @@ export default function PickupPreviewCard({
             </View>
           </View>
 
-          <Text style={styles.metaText}>📦 Post #{pickup.post?.id}</Text>
+          <Text style={styles.metaText} numberOfLines={1}>
+            Post #{pickup.post?.id ?? pickup.id}
+          </Text>
           <View style={styles.distanceBadge}>
-            <Feather name="navigation" size={11} color={theme.colors.emerald[600]} />
+            <Feather name="navigation" size={12} color={theme.colors.emerald[600]} />
             <Text style={styles.distanceText}>{distanceText}</Text>
           </View>
         </View>
+        {onDismiss ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss selected pickup"
+            onPress={onDismiss}
+            hitSlop={8}
+            style={styles.dismissButton}
+          >
+            <Feather name="x" size={18} color={theme.colors.text.tertiary} />
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.actionsRow}>
         {onGetDirections && (
           <Pressable
+            accessibilityRole="button"
             style={[styles.directionsButton, isLoadingRoute && styles.buttonDisabled]}
             onPress={() => onGetDirections(pickup)}
             disabled={isLoadingRoute}
@@ -84,6 +115,7 @@ export default function PickupPreviewCard({
         )}
 
         <Pressable
+          accessibilityRole="button"
           style={styles.detailsButton}
           onPress={() => onViewDetails(pickup.id)}
         >
@@ -98,64 +130,83 @@ export default function PickupPreviewCard({
 const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 92,
-    backgroundColor: theme.colors.canvas.primary,
-    borderRadius: theme.radius.xl,
-    padding: 14,
+    left: 12,
+    right: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    ...theme.shadows.xl,
-    elevation: 8,
+    borderColor: "#E6EEE9",
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    zIndex: 40,
+    elevation: 16,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 34,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#DCE6E0",
+    marginBottom: 12,
   },
   contentRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
-  iconBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.emerald[50],
+  thumbnail: {
+    width: 76,
+    height: 76,
+    borderRadius: 13,
+    backgroundColor: "#EEF5F1",
+  },
+  thumbnailFallback: {
+    width: 76,
+    height: 76,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.emerald[100],
+    backgroundColor: theme.colors.emerald[50],
   },
   detailsCol: {
     flex: 1,
+    minHeight: 76,
     marginLeft: 12,
   },
   headerRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
+    alignItems: "flex-start",
+    marginBottom: 6,
   },
   title: {
     fontSize: theme.typography.fontSize.md.size,
     fontFamily: theme.typography.fontFamily.semiBold,
-    color: theme.colors.text.primary,
+    color: theme.colors.forest[500],
     flex: 1,
-    marginRight: 6,
+    marginRight: 8,
+    lineHeight: 20,
   },
   statusBadge: {
-    backgroundColor: theme.colors.emerald[50],
+    backgroundColor: "#EAF6F0",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: theme.radius.full,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexShrink: 0,
   },
   statusBadgeText: {
     color: theme.colors.emerald[700],
-    fontSize: theme.typography.fontSize.xs.size,
+    fontSize: 10,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   metaText: {
     fontSize: theme.typography.fontSize.xs.size,
     color: theme.colors.text.secondary,
     fontFamily: theme.typography.fontFamily.regular,
-    marginBottom: 2,
+    marginBottom: 7,
   },
   distanceBadge: {
     flexDirection: "row",
@@ -165,16 +216,23 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: theme.typography.fontSize.xs.size,
     fontFamily: theme.typography.fontFamily.semiBold,
-    color: theme.colors.emerald[600],
+    color: theme.colors.forest[500],
+  },
+  dismissButton: {
+    width: 30,
+    height: 30,
+    marginLeft: 4,
+    marginTop: -3,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: "#F5F8F6",
   },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
+    marginTop: 14,
   },
   directionsButton: {
     flex: 1,
@@ -182,10 +240,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.emerald[500],
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 46,
     gap: 6,
-    ...theme.shadows.sm,
   },
   directionsButtonText: {
     color: "#FFFFFF",
@@ -200,9 +257,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.canvas.secondary,
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    backgroundColor: "#F2F7F4",
+    borderRadius: 12,
+    minHeight: 46,
     gap: 4,
   },
   detailsButtonText: {

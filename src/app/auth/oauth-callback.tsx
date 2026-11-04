@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../../context/AuthProvider";
 
-export default function OAuthCallbackScreen() {
+export default function LegacyOAuthCallbackScreen() {
   const params = useLocalSearchParams<{
     accessToken?: string | string[];
     refreshToken?: string | string[];
@@ -14,38 +14,42 @@ export default function OAuthCallbackScreen() {
   const handledRef = useRef(false);
 
   useEffect(() => {
-    handleCallback();
-  }, [params.accessToken, params.refreshToken]);
-
-  const handleCallback = async () => {
     if (handledRef.current) return;
-
     WebBrowser.maybeCompleteAuthSession();
 
     const rawAccessToken = params.accessToken;
     const rawRefreshToken = params.refreshToken;
+    const accessToken = Array.isArray(rawAccessToken)
+      ? rawAccessToken[0]
+      : rawAccessToken;
+    const refreshToken = Array.isArray(rawRefreshToken)
+      ? rawRefreshToken[0]
+      : rawRefreshToken;
 
-    const accessToken = Array.isArray(rawAccessToken) ? rawAccessToken[0] : rawAccessToken;
-    const refreshToken = Array.isArray(rawRefreshToken) ? rawRefreshToken[0] : rawRefreshToken;
-
-    if (typeof accessToken === "string" && accessToken.length > 0 && typeof refreshToken === "string" && refreshToken.length > 0) {
+    if (accessToken && refreshToken) {
       handledRef.current = true;
-      try {
-        await completeOAuthTokens(accessToken, refreshToken);
-      } catch (error) {
-        console.error("[OAuthCallback] Failed to complete auth or fetch profile:", error);
-        router.replace("/auth" as any);
-      }
+      void completeOAuthTokens(accessToken, refreshToken)
+        .then(() => router.replace("/" as any))
+        .catch((error: unknown) => {
+          console.error(
+            "[OAuthCallback] Legacy sign-in could not be completed:",
+            error,
+          );
+          router.replace("/auth" as any);
+        });
     } else if (user) {
-      const userRoleRoute = user?.role
-        ? `/${user.role.toLowerCase().replace(/\s+/g, "-")}`
-        : "/citizen";
-      router.replace(userRoleRoute as any);
+      const route = `/${user.role.toLowerCase().replace(/\s+/g, "-")}`;
+      router.replace(route as any);
     } else {
-      console.warn("[OAuthCallback] No valid tokens received in callback URL.");
       router.replace("/auth" as any);
     }
-  };
+  }, [
+    params.accessToken,
+    params.refreshToken,
+    user,
+    completeOAuthTokens,
+    router,
+  ]);
 
   return (
     <View

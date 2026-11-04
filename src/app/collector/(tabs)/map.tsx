@@ -6,15 +6,19 @@ import {
 } from "@maplibre/maplibre-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  Modal,
+  Pressable,
+  ScrollView,
   View,
   StyleSheet,
   Text,
+  TextInput,
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Linking,
 } from "react-native";
-import * as Location from "expo-location";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { calculateDistance } from "haversine-toolkit";
@@ -34,11 +38,15 @@ import CircularPin from "../../../components/map/CircularPin";
 import RouteOverlay from "../../../components/map/RouteOverlay";
 import RouteSummary from "../../../components/map/RouteSummary";
 import {
-  MAPLIBRE_STYLE_URL,
-  MAPLIBRE_STYLE_FALLBACK,
-  DEFAULT_CAMERA,
+  ALGERIA_OVERVIEW,
 } from "../../../components/map/mapConfig";
+import {
+  getLocationIssueMessage,
+  useDeviceLocation,
+} from "../../../hooks/useDeviceLocation";
+import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import { theme } from "../../../theme/tokens";
+import NotificationBell from "../../../components/NotificationBell";
 
 interface ActiveRoute {
   route: RouteResult;
@@ -84,21 +92,26 @@ export default function CollectorMapScreen() {
   const cameraRef = useRef<CameraRef>(null);
   const markerPressedRef = useRef(false);
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const { location, issue: locationIssue, isLoading: isLocating, requestLocation } =
+    useDeviceLocation();
+  const { style: mapStyle, error: mapStyleError } = useMapTilerStyle();
   const [mapPickups, setMapPickups] = useState<MapPickupResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState<WasteCategory | "ALL">("ALL");
+  const [searchText, setSearchText] = useState("");
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [draftCategory, setDraftCategory] = useState<WasteCategory | "ALL">("ALL");
   const [selectedPickup, setSelectedPickup] = useState<MapPickupResponse | null>(null);
   const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
   // Routing state
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
-  const [mapStyleUrl, setMapStyleUrl] = useState<any>(MAPLIBRE_STYLE_URL);
-  const [hasFallenBack, setHasFallenBack] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(false);
+  const hasSelectedPlace = Boolean(selectedPickup || selectedCenter) && !activeRoute;
 
   const categories: (WasteCategory | "ALL")[] = [
     "ALL",
@@ -107,6 +120,30 @@ export default function CollectorMapScreen() {
         typeof value !== "number" && value !== "ALL"
     ),
   ];
+
+  const normalizedSearch = searchText.trim().toLocaleLowerCase();
+  const visiblePickups = useMemo(
+    () =>
+      normalizedSearch
+        ? mapPickups.filter((pickup) =>
+            `${pickup.post?.title ?? ""} ${pickup.post?.id ?? pickup.id}`
+              .toLocaleLowerCase()
+              .includes(normalizedSearch)
+          )
+        : mapPickups,
+    [mapPickups, normalizedSearch]
+  );
+  const visibleCenters = useMemo(
+    () =>
+      normalizedSearch
+        ? mapCenters.filter((center) =>
+            `${center.name} ${center.address ?? ""}`
+              .toLocaleLowerCase()
+              .includes(normalizedSearch)
+          )
+        : mapCenters,
+    [mapCenters, normalizedSearch]
+  );
 
   const getDistanceText = (item: { latitude: number; longitude: number }) => {
     if (!location) return "Distance unavailable";
@@ -126,59 +163,29 @@ export default function CollectorMapScreen() {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    const getLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          if (isMounted) setLocationError("Location permission denied");
-          return;
-        }
-
-        try {
-          const currentLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          if (isMounted) {
-            setLocation(currentLocation);
-            setLocationError(null);
-          }
-        } catch (currErr) {
-          console.log("getCurrentPositionAsync failed, trying lastKnownLocation:", currErr);
-          
-          const lastKnownLocation = await Location.getLastKnownPositionAsync();
-          if (lastKnownLocation) {
-            if (isMounted) {
-              setLocation(lastKnownLocation);
-              setLocationError(null);
-            }
-          } else {
-            throw new Error("No current or last known location available");
-          }
-        }
-      } catch (err: any) {
-        console.log("location fetch failed:", err);
-        if (isMounted) {
-          setLocationError(err.message || "Location unavailable");
-        }
-      }
-    };
-    getLocation();
-    return () => {
-      isMounted = false;
-    };
-  }, [locationError === null && !location]);
+    if (!mapReady || !location) return;
+    cameraRef.current?.flyTo({
+      center: [location.coords.longitude, location.coords.latitude],
+      zoom: 14.5,
+      duration: 700,
+    });
+  }, [location, mapReady]);
 
   useEffect(() => {
-    if (!location && !locationError) return;
+    if (!location) {
+      setMapPickups([]);
+      setMapCenters([]);
+      setLoading(false);
+      return;
+    }
 
     let isMounted = true;
     const fetchData = async () => {
       setLoading(true);
-      
-      const coords = location 
-        ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-        : DEFAULT_CAMERA.center;
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
 
       try {
         const [pickups, centers] = await Promise.all([
@@ -214,7 +221,7 @@ export default function CollectorMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location, locationError, radius, category]);
+  }, [location, radius, category]);
 
   const handleGetDirections = async (
     target: { latitude: number; longitude: number; name?: string; title?: string }
@@ -282,165 +289,423 @@ export default function CollectorMapScreen() {
     }
   };
 
-  const handleRecenter = () => {
-    if (!location) {
-      Alert.alert("Location Unavailable", "Could not determine your current location.");
-      return;
-    }
+  const handleRecenter = async () => {
+    const currentLocation = await requestLocation();
+    if (!currentLocation || !mapReady) return;
     cameraRef.current?.flyTo({
-      center: [location.coords.longitude, location.coords.latitude],
+      center: [
+        currentLocation.coords.longitude,
+        currentLocation.coords.latitude,
+      ],
       zoom: 15,
       duration: 500,
     });
   };
 
-  if (!location && !locationError) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-        <Text style={styles.loadingText}>Fetching location…</Text>
-      </View>
-    );
-  }
+  const openAppSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.warn("Could not open Wastoo app settings.", error);
+      Alert.alert("Settings unavailable", "Open Wastoo's settings from Android Settings.");
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Map
-        style={styles.map}
-        mapStyle={mapStyleUrl}
-        attribution={false}
-        logo={false}
-        compass={true}
-        compassPosition={{ top: 110, right: 16 }}
-        onDidFailLoadingMap={() => {
-          if (!hasFallenBack) {
-            setHasFallenBack(true);
-            setMapStyleUrl(MAPLIBRE_STYLE_FALLBACK);
-          }
-        }}
-        onPress={() => {
-          if (!markerPressedRef.current) {
-            setSelectedPickup(null);
-            setSelectedCenter(null);
-          }
-          markerPressedRef.current = false;
-        }}
-      >
-        <Camera
-          ref={cameraRef}
-          initialViewState={{
-            center: location 
-              ? [location.coords.longitude, location.coords.latitude] 
-              : [DEFAULT_CAMERA.center.longitude, DEFAULT_CAMERA.center.latitude],
-            zoom: 14.5,
+      {mapStyle ? (
+        <Map
+          style={styles.map}
+          mapStyle={mapStyle}
+          attribution
+          logo={false}
+          compass
+          compassPosition={{ top: insets.top + 158, right: 16 }}
+          onDidFinishLoadingMap={() => setMapReady(true)}
+          onDidFailLoadingMap={() => {
+            console.warn("MapTiler map style failed to load.");
+            setMapLoadError(true);
           }}
-          maxZoom={19}
-        />
-
-        {location && <UserLocation animated accuracy heading />}
-
-        {activeRoute && (
-          <RouteOverlay
-            route={activeRoute.route}
-            originCoordinate={{
-              latitude: location!.coords.latitude,
-              longitude: location!.coords.longitude,
+          onPress={() => {
+            if (!markerPressedRef.current) {
+              setSelectedPickup(null);
+              setSelectedCenter(null);
+            }
+            markerPressedRef.current = false;
+          }}
+        >
+          <Camera
+            ref={cameraRef}
+            initialViewState={{
+              center: [
+                ALGERIA_OVERVIEW.center.longitude,
+                ALGERIA_OVERVIEW.center.latitude,
+              ],
+              zoom: ALGERIA_OVERVIEW.zoom,
             }}
-            destinationCoordinate={activeRoute.destinationCoordinate}
+            maxZoom={19}
           />
-        )}
 
-        {mapPickups.map((pickup) =>
-          pickup.post?.latitude != null && pickup.post?.longitude != null ? (
-            <CircularPin
-              key={`pickup-${pickup.id}`}
-              coordinate={{
-                latitude: pickup.post.latitude,
-                longitude: pickup.post.longitude,
+          {location && <UserLocation animated accuracy heading />}
+
+          {activeRoute && location && (
+            <RouteOverlay
+              route={activeRoute.route}
+              originCoordinate={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
               }}
-              image={pickup.post.image}
-              ringColor={pickupRingColor(pickup.status)}
-              isSelected={selectedPickup?.id === pickup.id}
+              destinationCoordinate={activeRoute.destinationCoordinate}
+            />
+          )}
+
+          {visiblePickups.map((pickup) =>
+            pickup.post?.latitude != null && pickup.post?.longitude != null ? (
+              <CircularPin
+                key={`pickup-${pickup.id}`}
+                coordinate={{
+                  latitude: pickup.post.latitude,
+                  longitude: pickup.post.longitude,
+                }}
+                image={pickup.post.image}
+                ringColor={pickupRingColor(pickup.status)}
+                isSelected={selectedPickup?.id === pickup.id}
+                onPress={() => {
+                  markerPressedRef.current = true;
+                  setSelectedPickup(pickup);
+                  setSelectedCenter(null);
+                  cameraRef.current?.easeTo({
+                    center: [pickup.post!.longitude!, pickup.post!.latitude!],
+                    duration: 400,
+                  });
+                }}
+              />
+            ) : null
+          )}
+
+          {visibleCenters.map((center) => (
+            <CircularPin
+              key={`center-${center.id}`}
+              coordinate={{
+                latitude: center.latitude,
+                longitude: center.longitude,
+              }}
+              ringColor="#087F5B"
+              iconName="recycle"
+              isSelected={selectedCenter?.id === center.id}
               onPress={() => {
                 markerPressedRef.current = true;
-                setSelectedPickup(pickup);
-                setSelectedCenter(null);
+                setSelectedCenter(center);
+                setSelectedPickup(null);
                 cameraRef.current?.easeTo({
-                  center: [pickup.post!.longitude!, pickup.post!.latitude!],
+                  center: [center.longitude, center.latitude],
                   duration: 400,
                 });
               }}
             />
-          ) : null
-        )}
-
-        {mapCenters.map((center) => (
-          <CircularPin
-            key={`center-${center.id}`}
-            coordinate={{
-              latitude: center.latitude,
-              longitude: center.longitude,
-            }}
-            ringColor="#087F5B"
-            iconName="recycle"
-            isSelected={selectedCenter?.id === center.id}
-            onPress={() => {
-              markerPressedRef.current = true;
-              setSelectedCenter(center);
-              setSelectedPickup(null);
-              cameraRef.current?.easeTo({
-                center: [center.longitude, center.latitude],
-                duration: 400,
-              });
-            }}
-          />
-        ))}
-      </Map>
-
-      {locationError && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>
-            {locationError === "Location permission denied" 
-              ? "Location access denied. Using default region." 
-              : "Device location unavailable. Using default region."}
+          ))}
+        </Map>
+      ) : (
+        <View style={[styles.map, styles.mapUnavailable]}>
+          <Text style={styles.mapUnavailableText}>
+            {mapStyleError ?? "Loading MapTiler map style…"}
           </Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={() => {
-              setLocationError(null);
-              // Trigger the useEffect by updating a dependency or calling a function
-              // For simplicity, we can just call a function if we extract getLocation
-            }}
-          >
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
         </View>
       )}
 
-      {/* Floating Category Filter Chips */}
+      <View
+        pointerEvents="box-none"
+        style={[styles.topOverlay, { top: insets.top + 6 }]}
+      >
+        <View style={styles.headingRow}>
+          <View style={styles.headingCopy}>
+            <Text style={styles.headingTitle}>Explore nearby</Text>
+            <Text style={styles.headingSubtitle} numberOfLines={1}>
+              {isLocating
+                ? "Finding your location…"
+                : locationIssue
+                  ? "Location needs attention"
+                : location
+                  ? `${visiblePickups.length + visibleCenters.length} places around you`
+                  : "Discover pickups and recycling centers"}
+            </Text>
+          </View>
+          <View style={styles.headerAction}>
+            <NotificationBell />
+          </View>
+        </View>
+
+        <View style={styles.searchBar}>
+          <MaterialCommunityIcons
+            name="magnify"
+            size={21}
+            color={theme.colors.text.tertiary}
+          />
+          <TextInput
+            accessibilityLabel="Search pickups and recycling centers"
+            placeholder="Search pickups or centers"
+            placeholderTextColor="#84928A"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            style={styles.searchInput}
+          />
+          {searchText.length > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              onPress={() => setSearchText("")}
+              hitSlop={8}
+              style={styles.clearSearchButton}
+            >
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={18}
+                color="#8A9890"
+              />
+            </Pressable>
+          )}
+          <View style={styles.searchDivider} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open map filters"
+            onPress={() => {
+              setDraftCategory(category);
+              setFiltersVisible(true);
+            }}
+            style={({ pressed }) => [
+              styles.filterButton,
+              pressed && styles.controlPressed,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="tune-variant"
+              size={20}
+              color={theme.colors.emerald[600]}
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {mapLoadError && (
+        <View style={styles.mapErrorBanner}>
+          <Text style={styles.errorText}>
+            Map tiles could not load. Check your internet connection and MapTiler API key.
+          </Text>
+        </View>
+      )}
+
+      {__DEV__ && location && !locationIssue && (
+        <View style={[styles.debugLocation, { top: insets.top + 152 }]}>
+          <Text style={styles.debugLocationText}>
+            GPS {location.coords.latitude.toFixed(5)},{" "}
+            {location.coords.longitude.toFixed(5)}
+            {location.coords.accuracy != null
+              ? ` · ±${Math.round(location.coords.accuracy)} m`
+              : ""}
+          </Text>
+        </View>
+      )}
+
+      {locationIssue && (
+        <View style={[styles.locationIssueBanner, { top: insets.top + 154 }]}>
+          <MaterialCommunityIcons
+            name="map-marker-alert-outline"
+            size={20}
+            color="#9B5B12"
+          />
+          <View style={styles.locationIssueCopy}>
+            <Text style={styles.errorText}>
+              {getLocationIssueMessage(locationIssue, Boolean(location))}
+            </Text>
+            <View style={styles.locationMessageActions}>
+              {locationIssue === "permission-blocked" && (
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => void openAppSettings()}
+                >
+                  <Text style={styles.retryText}>Settings</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => void requestLocation()}
+                disabled={isLocating}
+              >
+                {isLocating ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.retryText}>Retry</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       <MapFilterBar
         categories={categories}
         selectedCategory={category}
         onSelectCategory={setCategory}
-        topOffset={50}
+        topOffset={insets.top + 106}
       />
 
-      {/* Floating Recenter GPS Button */}
-      <View style={styles.floatingControlsRight}>
-        <TouchableOpacity
-          style={styles.recenterButton}
-          onPress={handleRecenter}
-          activeOpacity={0.8}
+      {!hasSelectedPlace && (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.floatingControlsRight,
+            { top: insets.top + (locationIssue ? 260 : 205) },
+          ]}
         >
-          <MaterialCommunityIcons
-            name="crosshairs-gps"
-            size={22}
-            color={theme.colors.emerald[600]}
-          />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Recenter map on my location"
+            style={styles.recenterButton}
+            onPress={() => void handleRecenter()}
+            activeOpacity={0.8}
+            disabled={isLocating}
+          >
+            {isLocating ? (
+              <ActivityIndicator size="small" color={theme.colors.emerald[600]} />
+            ) : (
+              <MaterialCommunityIcons
+                name="crosshairs-gps"
+                size={22}
+                color={theme.colors.emerald[600]}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* Selected Pickup Preview Card */}
+      {searchText.trim().length > 0 &&
+        visiblePickups.length + visibleCenters.length === 0 && (
+          <View
+            style={[
+              styles.noResults,
+              { top: insets.top + 153 },
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={styles.noResultsText}>
+              No pickups or centers match “{searchText.trim()}”.
+            </Text>
+          </View>
+        )}
+
+      <Modal
+        visible={filtersVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setFiltersVisible(false)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close filters"
+            style={styles.modalScrim}
+            onPress={() => setFiltersVisible(false)}
+          />
+          <View
+            style={[
+              styles.filterSheet,
+              { paddingBottom: Math.max(insets.bottom, 20) },
+            ]}
+          >
+            <View style={styles.sheetHandle} />
+            <View style={styles.filterSheetHeader}>
+              <View>
+                <Text style={styles.filterSheetTitle}>Filters</Text>
+                <Text style={styles.filterSheetSubtitle}>
+                  Choose one material category
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setDraftCategory("ALL")}
+                hitSlop={8}
+              >
+                <Text style={styles.clearFiltersText}>Clear</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.filterOptions}
+              contentContainerStyle={styles.filterOptionsContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {categories.map((item) => {
+                const selected = draftCategory === item;
+                const label =
+                  String(item).toLowerCase() === "all"
+                    ? "All materials"
+                    : `${String(item).charAt(0)}${String(item)
+                        .slice(1)
+                        .toLowerCase()}`;
+                return (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    key={String(item)}
+                    onPress={() => setDraftCategory(item)}
+                    style={[
+                      styles.filterOption,
+                      selected && styles.filterOptionSelected,
+                    ]}
+                  >
+                    <View style={styles.filterOptionLeft}>
+                      <MaterialCommunityIcons
+                        name={selected ? "check-circle" : "circle-outline"}
+                        size={20}
+                        color={
+                          selected
+                            ? theme.colors.emerald[600]
+                            : theme.colors.text.tertiary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.filterOptionText,
+                          selected && styles.filterOptionTextSelected,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+                    {selected && (
+                      <Text style={styles.selectedLabel}>Selected</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.filterActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setFiltersVisible(false)}
+                style={styles.filterCancelButton}
+              >
+                <Text style={styles.filterCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setCategory(draftCategory);
+                  setFiltersVisible(false);
+                }}
+                style={styles.filterApplyButton}
+              >
+                <Text style={styles.filterApplyText}>Show results</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Selected pickup */}
       {selectedPickup && !activeRoute && (
         <PickupPreviewCard
           pickup={selectedPickup}
@@ -448,6 +713,8 @@ export default function CollectorMapScreen() {
             latitude: selectedPickup.post?.latitude ?? 0,
             longitude: selectedPickup.post?.longitude ?? 0,
           })}
+          onDismiss={() => setSelectedPickup(null)}
+          bottomOffset={12}
           onViewDetails={(pickupId) =>
             router.push(`/collector/pickup/${pickupId}`)
           }
@@ -462,17 +729,17 @@ export default function CollectorMapScreen() {
         />
       )}
 
-      {/* Selected Center Preview Card */}
       {selectedCenter && !activeRoute && (
         <CenterPreviewCard
           center={selectedCenter}
           distanceText={getDistanceText(selectedCenter)}
+          onDismiss={() => setSelectedCenter(null)}
+          bottomOffset={12}
           onGetDirections={() => handleGetDirections(selectedCenter)}
           isLoadingRoute={calculatingRoute}
         />
       )}
 
-      {/* Active Route Summary */}
       {activeRoute && (
         <RouteSummary
           destinationName={activeRoute.destinationName}
@@ -484,12 +751,22 @@ export default function CollectorMapScreen() {
         />
       )}
 
-      {/* Expandable Radius Slider */}
       <MapRadiusSlider
         radius={radius}
         loadingPosts={loading}
         onRadiusChange={setRadius}
-        style={{ bottom: activeRoute || selectedPickup || selectedCenter ? 260 : 32 }}
+        style={
+          hasSelectedPlace
+            ? {
+                top:
+                  insets.top +
+                  (locationIssue ? 290 : __DEV__ && location ? 184 : 150),
+                bottom: undefined,
+              }
+            : activeRoute
+              ? { bottom: 184 }
+              : { bottom: 12 }
+        }
       />
     </View>
   );
@@ -503,66 +780,330 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    color: theme.colors.text.secondary,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  errorBanner: {
+  topOverlay: {
     position: "absolute",
-    top: 60,
-    left: 20,
-    right: 20,
-    backgroundColor: theme.colors.canvas.primary,
-    padding: 12,
-    borderRadius: 12,
+    left: 16,
+    right: 16,
+    zIndex: 12,
+    elevation: 6,
+  },
+  headingRow: {
+    minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 20,
-    ...theme.shadows.md,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.error[500],
+  },
+  headingCopy: {
+    flex: 1,
+  },
+  headingTitle: {
+    color: theme.colors.forest[500],
+    fontSize: 19,
+    lineHeight: 24,
+    fontFamily: theme.typography.fontFamily.bold,
+  },
+  headingSubtitle: {
+    marginTop: 1,
+    color: "#62746A",
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  headerAction: {
+    width: 42,
+    height: 42,
+    marginLeft: 10,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5ECE8",
+    ...theme.shadows.sm,
+  },
+  searchBar: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 9,
+    paddingLeft: 14,
+    paddingRight: 5,
+    borderRadius: 15,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5ECE8",
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchInput: {
+    flex: 1,
+    height: "100%",
+    marginLeft: 9,
+    paddingVertical: 0,
+    color: theme.colors.forest[500],
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  clearSearchButton: {
+    width: 34,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchDivider: {
+    width: 1,
+    height: 24,
+    marginHorizontal: 3,
+    backgroundColor: "#E8EEEB",
+  },
+  filterButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#F0F7F3",
+  },
+  controlPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.98 }],
   },
   errorText: {
-    fontSize: 13,
-    color: theme.colors.text.primary,
+    fontSize: 12,
+    lineHeight: 17,
+    color: theme.colors.forest[500],
     fontFamily: theme.typography.fontFamily.medium,
-    flex: 1,
-    marginRight: 12,
+  },
+  locationMessageActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 9,
   },
   retryButton: {
     backgroundColor: theme.colors.emerald[500],
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    minHeight: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
   },
   retryText: {
     color: "white",
-    fontSize: 12,
-    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  locationIssueBanner: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#FFF9EC",
+    borderWidth: 1,
+    borderColor: "#F2E3C4",
+    zIndex: 20,
+    ...theme.shadows.md,
+  },
+  locationIssueCopy: {
+    flex: 1,
+  },
+  mapUnavailable: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  mapUnavailableText: {
+    color: theme.colors.text.secondary,
+    textAlign: "center",
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  mapErrorBanner: {
+    position: "absolute",
+    top: 12,
+    left: 16,
+    right: 16,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    zIndex: 16,
+    ...theme.shadows.md,
   },
   floatingControlsRight: {
     position: "absolute",
     right: 16,
-    top: 120,
     zIndex: 10,
+    elevation: 4,
   },
   recenterButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: theme.colors.canvas.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
+    borderColor: "#E5ECE8",
     ...theme.shadows.md,
-    elevation: 5,
+    elevation: 4,
+  },
+  debugLocation: {
+    position: "absolute",
+    left: 16,
+    zIndex: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.88)",
+  },
+  debugLocationText: {
+    color: theme.colors.forest[500],
+    fontSize: 9,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  noResults: {
+    position: "absolute",
+    left: 16,
+    right: 72,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#E5ECE8",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    zIndex: 9,
+    ...theme.shadows.sm,
+  },
+  noResultsText: {
+    color: theme.colors.text.secondary,
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(16, 34, 29, 0.38)",
+  },
+  filterSheet: {
+    maxHeight: "76%",
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...theme.shadows.xl,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D8E2DD",
+    marginBottom: 20,
+  },
+  filterSheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  filterSheetTitle: {
+    color: theme.colors.forest[500],
+    fontSize: theme.typography.fontSize.xl.size,
+    fontFamily: theme.typography.fontFamily.bold,
+  },
+  filterSheetSubtitle: {
+    marginTop: 3,
+    color: theme.colors.text.tertiary,
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  clearFiltersText: {
+    color: theme.colors.emerald[600],
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterOptions: {
+    flexShrink: 1,
+  },
+  filterOptionsContent: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  filterOption: {
+    minHeight: 48,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#E8EEEB",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  filterOptionSelected: {
+    borderColor: "#A8D9C4",
+    backgroundColor: "#F1F8F4",
+  },
+  filterOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  filterOptionText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  filterOptionTextSelected: {
+    color: theme.colors.forest[500],
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  selectedLabel: {
+    color: theme.colors.emerald[700],
+    fontSize: 10,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF2EF",
+  },
+  filterCancelButton: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E3EAE6",
+    borderRadius: 12,
+  },
+  filterCancelText: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  filterApplyButton: {
+    flex: 1.4,
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: theme.colors.emerald[500],
+  },
+  filterApplyText: {
+    color: "#FFFFFF",
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.bold,
   },
 });

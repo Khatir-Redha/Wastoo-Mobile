@@ -2,12 +2,12 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import * as Location from "expo-location";
 import {
   Map,
   UserLocation,
@@ -17,9 +17,13 @@ import {
 } from "@maplibre/maplibre-react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
-  MAPLIBRE_STYLE_URL,
-  MAPLIBRE_STYLE_FALLBACK,
+  ALGERIA_OVERVIEW,
 } from "./mapConfig";
+import {
+  getLocationIssueMessage,
+  useDeviceLocation,
+} from "../../hooks/useDeviceLocation";
+import { useMapTilerStyle } from "../../hooks/useMapTilerStyle";
 import { theme } from "../../theme/tokens";
 
 export type PickupLocation = {
@@ -33,26 +37,25 @@ type Props = {
   onLocationSelect?: (location: PickupLocation) => void;
 };
 
-const DEFAULT_COORDS = {
-  latitude: 24.4539,
-  longitude: 54.3773,
-};
-
 export default function PickupLocationMap({
   backendLocation,
   onLocationSelect,
 }: Props) {
   const cameraRef = useRef<CameraRef>(null);
 
+  const {
+    location: deviceLocation,
+    issue: locationIssue,
+    isLoading: isLocating,
+    requestLocation,
+  } = useDeviceLocation();
+  const { style: mapStyle, error: mapStyleError } = useMapTilerStyle();
   const [selectedLocation, setSelectedLocation] = useState<PickupLocation | null>(
     backendLocation ?? null
   );
-  const [locationStatus, setLocationStatus] = useState<"loading" | "ready" | "error">(
-    "loading"
-  );
   const [locationNote, setLocationNote] = useState("");
-  const [mapStyleUrl, setMapStyleUrl] = useState<any>(MAPLIBRE_STYLE_URL);
-  const [hasFallenBack, setHasFallenBack] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(false);
 
   const updateLocation = useCallback(
     (location: PickupLocation) => {
@@ -62,105 +65,48 @@ export default function PickupLocationMap({
     [onLocationSelect]
   );
 
-  // Helper to get GPS location with robust fallback chain
-  const fetchDevicePosition = async (): Promise<{
-    latitude: number;
-    longitude: number;
-  } | null> => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        return null;
-      }
-
-      // Try current position first
-      try {
-        const current = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (current?.coords) {
-          return {
-            latitude: current.coords.latitude,
-            longitude: current.coords.longitude,
-          };
-        }
-      } catch (err) {
-        console.log("getCurrentPositionAsync failed, falling back to last known:", err);
-      }
-
-      // Fallback to last known position independently
-      try {
-        const lastKnown = await Location.getLastKnownPositionAsync({});
-        if (lastKnown?.coords) {
-          return {
-            latitude: lastKnown.coords.latitude,
-            longitude: lastKnown.coords.longitude,
-          };
-        }
-      } catch (lastErr) {
-        console.log("getLastKnownPositionAsync also failed:", lastErr);
-      }
-
-      return null;
-    } catch (err) {
-      console.log("fetchDevicePosition fatal error:", err);
-      return null;
+  useEffect(() => {
+    if (backendLocation) {
+      updateLocation(backendLocation);
+      setLocationNote("");
+    } else if (deviceLocation) {
+      updateLocation({
+        latitude: deviceLocation.coords.latitude,
+        longitude: deviceLocation.coords.longitude,
+      });
+      setLocationNote("");
+    } else if (locationIssue) {
+      setLocationNote(getLocationIssueMessage(locationIssue, false));
     }
-  };
+  }, [backendLocation, deviceLocation, locationIssue, updateLocation]);
 
   useEffect(() => {
-    let isMounted = true;
+    if (!mapReady) return;
 
-    const getInitialLocation = async () => {
-      if (backendLocation) {
-        updateLocation(backendLocation);
-        if (isMounted) setLocationStatus("ready");
-        return;
-      }
+    const center: [number, number] | null = backendLocation
+      ? [backendLocation.longitude, backendLocation.latitude]
+      : deviceLocation
+        ? [deviceLocation.coords.longitude, deviceLocation.coords.latitude]
+        : null;
+    if (!center) return;
 
-      const coords = await fetchDevicePosition();
-
-      if (!isMounted) return;
-
-      if (coords) {
-        updateLocation(coords);
-        setLocationNote("");
-        setLocationStatus("ready");
-      } else {
-        // When device/emulator location services are unavailable,
-        // fall back to default coordinates so post creation is NOT blocked.
-        updateLocation(DEFAULT_COORDS);
-        setLocationNote("Could not detect GPS. Tap the map to choose your pickup spot.");
-        setLocationStatus("ready");
-      }
-    };
-
-    getInitialLocation();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [backendLocation, updateLocation]);
+    cameraRef.current?.flyTo({
+      center,
+      zoom: 14.5,
+      duration: 600,
+    });
+  }, [backendLocation, deviceLocation, mapReady]);
 
   const useCurrentLocation = async () => {
-    setLocationStatus("loading");
-    const coords = await fetchDevicePosition();
+    const position = await requestLocation();
 
-    if (coords) {
+    if (position) {
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
       updateLocation(coords);
       setLocationNote("");
-      cameraRef.current?.flyTo({
-        center: [coords.longitude, coords.latitude],
-        zoom: 15,
-        duration: 500,
-      });
-      setLocationStatus("ready");
-    } else {
-      setLocationStatus("ready");
-      Alert.alert(
-        "Location Unavailable",
-        "Could not detect your GPS position. You can tap anywhere on the map to set your location."
-      );
     }
   };
 
@@ -170,14 +116,31 @@ export default function PickupLocationMap({
       return;
     }
     updateLocation(backendLocation);
-    cameraRef.current?.flyTo({
-      center: [backendLocation.longitude, backendLocation.latitude],
-      zoom: 15,
-      duration: 500,
-    });
+    if (mapReady) {
+      cameraRef.current?.flyTo({
+        center: [backendLocation.longitude, backendLocation.latitude],
+        zoom: 15,
+        duration: 500,
+      });
+    }
   };
 
-  const handleMapPress = (event: any) => {
+  const openAppSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.warn("Could not open Wastoo app settings.", error);
+      Alert.alert("Settings unavailable", "Open Wastoo's settings from Android Settings.");
+    }
+  };
+
+  const handleMapPress = (event: {
+    nativeEvent?: {
+      lngLat?: number[];
+      geometry?: { coordinates?: number[] };
+    };
+    lngLat?: number[];
+  }) => {
     const coords =
       event.nativeEvent?.lngLat ||
       event.lngLat ||
@@ -185,6 +148,16 @@ export default function PickupLocationMap({
 
     if (coords && Array.isArray(coords) && coords.length >= 2) {
       const [longitude, latitude] = coords;
+      if (
+        !Number.isFinite(longitude) ||
+        longitude < -180 ||
+        longitude > 180 ||
+        !Number.isFinite(latitude) ||
+        latitude < -90 ||
+        latitude > 90
+      ) {
+        return;
+      }
       updateLocation({ latitude, longitude });
       setLocationNote("");
       cameraRef.current?.easeTo({
@@ -194,9 +167,11 @@ export default function PickupLocationMap({
     }
   };
 
-  const currentCenter = selectedLocation
+  const currentCenter: [number, number] = selectedLocation
     ? [selectedLocation.longitude, selectedLocation.latitude]
-    : [DEFAULT_COORDS.longitude, DEFAULT_COORDS.latitude];
+    : deviceLocation
+      ? [deviceLocation.coords.longitude, deviceLocation.coords.latitude]
+      : [ALGERIA_OVERVIEW.center.longitude, ALGERIA_OVERVIEW.center.latitude];
 
   return (
     <View style={styles.card}>
@@ -211,6 +186,16 @@ export default function PickupLocationMap({
         </View>
 
         <View style={styles.actions}>
+          {locationIssue === "permission-blocked" ? (
+            <TouchableOpacity
+              onPress={() => void openAppSettings()}
+              style={styles.actionBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.actionText}>Settings</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {backendLocation ? (
             <TouchableOpacity
               onPress={useSavedLocation}
@@ -225,93 +210,105 @@ export default function PickupLocationMap({
             onPress={useCurrentLocation}
             style={styles.actionBtn}
             activeOpacity={0.7}
+            disabled={isLocating}
           >
-            <Text style={styles.actionText}>Use GPS</Text>
+            {isLocating ? (
+              <ActivityIndicator size="small" color={theme.colors.emerald[600]} />
+            ) : (
+              <Text style={styles.actionText}>Use GPS</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.mapWrapper}>
-        {locationStatus === "loading" ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={theme.colors.emerald[500]} />
-            <Text style={styles.loadingText}>Detecting location…</Text>
+        {mapStyle ? (
+          <View style={styles.map}>
+            <Map
+              style={styles.mapElement}
+              mapStyle={mapStyle}
+              attribution
+              logo={false}
+              compass={false}
+              onDidFinishLoadingMap={() => setMapReady(true)}
+              onDidFailLoadingMap={() => {
+                console.warn("MapTiler map style failed to load.");
+                setMapLoadError(true);
+              }}
+              onPress={handleMapPress}
+            >
+              <Camera
+                ref={cameraRef}
+                initialViewState={{
+                  center: currentCenter,
+                  zoom:
+                    selectedLocation || deviceLocation
+                      ? 14.5
+                      : ALGERIA_OVERVIEW.zoom,
+                }}
+                maxZoom={19}
+              />
+
+              {deviceLocation && <UserLocation animated accuracy />}
+
+              {selectedLocation ? (
+                <Marker
+                  id="selected-pickup-pin"
+                  lngLat={[
+                    selectedLocation.longitude,
+                    selectedLocation.latitude,
+                  ]}
+                >
+                  <View style={styles.pinContainer}>
+                    <View style={styles.pinBubble}>
+                      <MaterialCommunityIcons
+                        name="map-marker"
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View style={styles.pinPointer} />
+                  </View>
+                </Marker>
+              ) : null}
+            </Map>
           </View>
         ) : (
-          <>
-            <View style={styles.map}>
-              <Map
-                style={styles.mapElement}
-                mapStyle={mapStyleUrl}
-                attribution={false}
-                logo={false}
-                compass={false}
-                onDidFailLoadingMap={() => {
-                  if (!hasFallenBack) {
-                    setHasFallenBack(true);
-                    setMapStyleUrl(MAPLIBRE_STYLE_FALLBACK);
-                  }
-                }}
-                onPress={handleMapPress}
-              >
-                <Camera
-                  ref={cameraRef}
-                  initialViewState={{
-                    center: currentCenter as [number, number],
-                    zoom: 14.5,
-                  }}
-                  maxZoom={19}
-                />
-
-                <UserLocation animated accuracy />
-
-                {selectedLocation ? (
-                  <Marker
-                    id="selected-pickup-pin"
-                    lngLat={[
-                      selectedLocation.longitude,
-                      selectedLocation.latitude,
-                    ]}
-                  >
-                    <View style={styles.pinContainer}>
-                      <View style={styles.pinBubble}>
-                        <MaterialCommunityIcons
-                          name="map-marker"
-                          size={20}
-                          color="#FFFFFF"
-                        />
-                      </View>
-                      <View style={styles.pinPointer} />
-                    </View>
-                  </Marker>
-                ) : null}
-              </Map>
-            </View>
-
-            <View style={styles.infoBox}>
-              <View style={styles.infoRow}>
-                <MaterialCommunityIcons
-                  name="crosshairs-gps"
-                  size={14}
-                  color={theme.colors.emerald[600]}
-                />
-                <Text style={styles.coordsText}>
-                  {selectedLocation
-                    ? `${selectedLocation.latitude.toFixed(4)}, ${selectedLocation.longitude.toFixed(4)}`
-                    : "Tap the map to set pickup location"}
-                </Text>
-              </View>
-
-              {locationNote ? (
-                <Text style={styles.noteText}>{locationNote}</Text>
-              ) : (
-                <Text style={styles.subtext}>
-                  Tap anywhere on the map to change the pickup spot.
-                </Text>
-              )}
-            </View>
-          </>
+          <View style={[styles.map, styles.mapUnavailable]}>
+            <Text style={styles.mapUnavailableText}>
+              {mapStyleError ?? "Loading MapTiler map style…"}
+            </Text>
+          </View>
         )}
+
+        {mapLoadError ? (
+          <Text style={styles.noteText}>
+            Map tiles could not load. Check your internet connection and MapTiler API key.
+          </Text>
+        ) : null}
+
+        <View style={styles.infoBox}>
+          <View style={styles.infoRow}>
+            <MaterialCommunityIcons
+              name="crosshairs-gps"
+              size={14}
+              color={theme.colors.emerald[600]}
+            />
+            <Text style={styles.coordsText}>
+              {selectedLocation
+                ? `${selectedLocation.latitude.toFixed(5)}, ${selectedLocation.longitude.toFixed(5)}`
+                : "Tap the map to set pickup location"}
+            </Text>
+          </View>
+
+          {locationNote ? (
+            <Text style={styles.noteText}>{locationNote}</Text>
+          ) : (
+            <Text style={styles.subtext}>
+              Tap anywhere on the map to change the pickup spot.
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -365,20 +362,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border.light,
   },
-  loadingBox: {
-    height: 220,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.canvas.secondary,
-  },
-  loadingText: {
-    marginTop: 8,
-    color: theme.colors.text.secondary,
-    fontSize: theme.typography.fontSize.sm.size,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
   map: {
     height: 220,
+  },
+  mapUnavailable: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    backgroundColor: theme.colors.canvas.secondary,
+  },
+  mapUnavailableText: {
+    color: theme.colors.text.secondary,
+    textAlign: "center",
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
   },
   mapElement: {
     flex: 1,

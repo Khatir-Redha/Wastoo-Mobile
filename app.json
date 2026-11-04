@@ -4,6 +4,7 @@
     "slug": "Wastoo",
     "version": "1.0.0",
     "orientation": "portrait",
+    "newArchEnabled": true,
     "icon": "./assets/images/icon.png",
     "scheme": "wastoo",
     "userInterfaceStyle": "automatic",
@@ -23,7 +24,17 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "wastoo",
+              "host": "auth",
+              "pathPrefix": "/callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
           "data": [
             {
               "scheme": "wastoo",
@@ -31,10 +42,7 @@
               "pathPrefix": "/oauth-callback"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
@@ -61,7 +69,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Wasto to use your location to show pickup requests near you."
+          "locationWhenInUsePermission": "Allow Wastoo to use your location to show nearby recycling pickups."
         }
       ],
       "@maplibre/maplibre-react-native",

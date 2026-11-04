@@ -16,6 +16,8 @@ interface CenterPreviewCardProps {
   onViewDetails?: (centerId: number) => void;
   onGetDirections?: (center: MapCenterResponse) => void;
   isLoadingRoute?: boolean;
+  onDismiss?: () => void;
+  bottomOffset?: number;
 }
 
 export default function CenterPreviewCard({
@@ -24,11 +26,12 @@ export default function CenterPreviewCard({
   onViewDetails,
   onGetDirections,
   isLoadingRoute = false,
+  onDismiss,
+  bottomOffset = 16,
 }: CenterPreviewCardProps) {
-  const phoneNumber = center.phone ?? null;
-
   return (
-    <View style={styles.cardContainer}>
+    <View style={[styles.cardContainer, { bottom: bottomOffset }]}>
+      <View style={styles.grabber} />
       <View style={styles.contentRow}>
         {/* Center icon badge */}
         <View style={styles.iconBadge}>
@@ -48,6 +51,17 @@ export default function CenterPreviewCard({
             <View style={styles.centerBadge}>
               <Text style={styles.centerBadgeText}>Center</Text>
             </View>
+            {onDismiss ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss selected center"
+                onPress={onDismiss}
+                hitSlop={8}
+                style={styles.dismissButton}
+              >
+                <Feather name="x" size={18} color={theme.colors.text.tertiary} />
+              </Pressable>
+            ) : null}
           </View>
 
           {/* Address */}
@@ -116,16 +130,29 @@ export default function CenterPreviewCard({
 const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 92,
-    backgroundColor: theme.colors.canvas.primary,
-    borderRadius: theme.radius.xl,
-    padding: 14,
+    left: 12,
+    right: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     borderWidth: 1,
-    borderColor: theme.colors.border.light,
-    ...theme.shadows.xl,
-    elevation: 8,
+    borderColor: "#E6EEE9",
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    zIndex: 40,
+    elevation: 16,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 34,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#DCE6E0",
+    marginBottom: 12,
   },
   contentRow: {
     flexDirection: "row",
@@ -144,6 +171,16 @@ const styles = StyleSheet.create({
   detailsCol: {
     flex: 1,
     marginLeft: 12,
+  },
+  dismissButton: {
+    width: 30,
+    height: 30,
+    marginLeft: 4,
+    marginTop: -3,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: "#F5F8F6",
   },
   headerRow: {
     flexDirection: "row",
@@ -199,10 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
+    marginTop: 14,
   },
   directionsButton: {
     flex: 1,
@@ -210,8 +244,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.emerald[500],
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 46,
     gap: 6,
     ...theme.shadows.sm,
   },
@@ -229,8 +263,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.canvas.secondary,
-    borderRadius: theme.radius.md,
-    paddingVertical: 10,
+    borderRadius: 12,
+    minHeight: 46,
     gap: 4,
   },
   detailsButtonText: {
