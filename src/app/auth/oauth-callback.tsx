@@ -29,17 +29,13 @@ export default function LegacyOAuthCallbackScreen() {
     if (accessToken && refreshToken) {
       handledRef.current = true;
       void completeOAuthTokens(accessToken, refreshToken)
-        .then(() => router.replace("/" as any))
-        .catch((error: unknown) => {
-          console.error(
-            "[OAuthCallback] Legacy sign-in could not be completed:",
-            error,
-          );
+        .then(() => undefined)
+        .catch(() => {
+          console.error("[OAuthCallback] Legacy sign-in could not be completed.");
           router.replace("/auth" as any);
         });
     } else if (user) {
-      const route = `/${user.role.toLowerCase().replace(/\s+/g, "-")}`;
-      router.replace(route as any);
+      return;
     } else {
       router.replace("/auth" as any);
     }

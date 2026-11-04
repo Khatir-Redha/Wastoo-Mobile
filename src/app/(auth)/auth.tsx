@@ -171,7 +171,9 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("CITIZEN");
+  const [selectedRole, setSelectedRole] = useState<
+    "CITIZEN" | "COLLECTOR" | "RECYCLING_CENTER" | null
+  >(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -188,6 +190,11 @@ const RegisterForm = ({ onSuccess }: { onSuccess: () => void }) => {
 
     if (!agreeTerms) {
       Alert.alert("Terms Required", "Please agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
+
+    if (!selectedRole) {
+      Alert.alert("Account Type Required", "Please choose the account type that best describes you.");
       return;
     }
 
@@ -460,6 +467,23 @@ export default function AuthScreen() {
 
         {/* Content Section */}
         <View style={styles.content}>
+          <Button
+            title={isGoogleLoading ? "Connecting…" : "Continue with Google"}
+            variant="secondary"
+            size="lg"
+            onPress={handleGoogleLogin}
+            loading={isGoogleLoading}
+            icon={!isGoogleLoading && <FontAwesome5 name="google" size={18} color="#EA4335" />}
+            iconPosition="left"
+            fullWidth
+            hapticFeedback={false}
+          />
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with email</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           {/* Segmented Control */}
           <View style={styles.segmentedControl}>
@@ -497,26 +521,8 @@ export default function AuthScreen() {
           {/* Forms */}
           {isLogin ? <LoginForm /> : <RegisterForm onSuccess={() => setIsLogin(true)} />}
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Social Login Buttons */}
+          {/* Other existing sign-in providers */}
           <View style={styles.socialButtons}>
-            <Button
-              title={isGoogleLoading ? "Connecting…" : "Continue with Google"}
-              variant="secondary"
-              size="lg"
-              onPress={handleGoogleLogin}
-              loading={isGoogleLoading}
-              icon={!isGoogleLoading && <FontAwesome5 name="google" size={18} color="#EA4335" />}
-              iconPosition="left"
-              hapticFeedback={false}
-            />
-
             <Button
               title={isFacebookLoading ? "Connecting…" : "Continue with Facebook"}
               variant="secondary"
@@ -773,5 +779,6 @@ const styles = StyleSheet.create({
   socialButtons: {
     width: '100%',
     gap: theme.spacing.lg,
+    marginTop: theme.spacing['2xl'],
   },
 });

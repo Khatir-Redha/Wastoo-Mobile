@@ -33,7 +33,6 @@ import PostService, { Post } from "../../../../services/post.service";
 import RoutingService, {
   RouteResult,
 } from "../../../../services/routing.service";
-import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
 import PostPreviewCard from "../../../components/map/PostPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
@@ -862,12 +861,6 @@ export default function PostsAndMapScreen() {
             </TouchableOpacity>
           </View>
 
-          <MapFilterBar
-            categories={categories}
-            selectedCategory={category}
-            onSelectCategory={setCategory}
-            topOffset={64}
-          />
         </View>
 
           <View

@@ -1,41 +1,101 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../../context/AuthProvider";
+import { getAuthRoute } from "../../lib/auth-profile";
 import SessionExpiredModal from "../components/SessionExpiredModal";
 import "../global.css";
 
 function NavigationGuard() {
-  const { user, loading, sessionExpired, dismissSessionExpired } = useAuth();
+  const {
+    user,
+    authState,
+    retrySessionRestoration,
+    sessionExpired,
+    dismissSessionExpired,
+  } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const lastRedirect = useRef<string | null>(null);
+  const inAuthGroup = segments[0] === "(auth)" || segments[0] === "auth";
+  const inOnboarding = segments[0] === "onboarding";
+
+  const expectedRoute = getAuthRoute(authState, user?.role);
+
+  const isAtExpectedRoute =
+    authState === "UNAUTHENTICATED"
+      ? inAuthGroup
+      : authState === "AUTHENTICATED_INCOMPLETE"
+        ? inOnboarding
+        : authState === "AUTHENTICATED_COMPLETE" && expectedRoute
+          ? segments[0] === expectedRoute.slice(1)
+          : false;
 
   useEffect(() => {
-    if (loading) return;
-
-    const inAuthGroup = segments[0] === "(auth)" || segments[0] === "auth";
-
-    if (!user && !inAuthGroup) {
-      router.replace("/auth" as any);
-    } else if (user && inAuthGroup) {
-      const userRoleRoute = user.role
-        ? `/${user.role.toLowerCase().replace(/\s+/g, "-")}`
-        : "/";
-      router.replace(userRoleRoute as any);
+    if (
+      authState === "INITIALIZING" ||
+      authState === "RESTORATION_ERROR" ||
+      !expectedRoute
+    ) {
+      return;
     }
-  }, [user, loading, segments]);
+
+    if (isAtExpectedRoute) {
+      lastRedirect.current = null;
+      return;
+    }
+
+    if (lastRedirect.current === expectedRoute) return;
+    lastRedirect.current = expectedRoute;
+    router.replace(expectedRoute as any);
+  }, [authState, expectedRoute, isAtExpectedRoute, router]);
+
+  if (authState === "INITIALIZING") {
+    return (
+      <View style={styles.overlay}>
+        <ActivityIndicator size="large" color="#087F5B" />
+      </View>
+    );
+  }
+
+  if (authState === "RESTORATION_ERROR") {
+    return (
+      <View style={styles.overlay}>
+        <Text style={styles.errorTitle}>Could not restore your session</Text>
+        <Text style={styles.errorMessage}>
+          Check your connection and try again. Your saved sign-in has been kept.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void retrySessionRestoration()}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryLabel}>Try again</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <>
-      <Slot />
+      {isAtExpectedRoute ? (
+        <Slot />
+      ) : (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color="#087F5B" />
+        </View>
+      )}
       <SessionExpiredModal
         visible={sessionExpired}
-        onLogin={() => {
-          dismissSessionExpired();
-          router.replace("/auth" as any);
-        }}
+        onLogin={dismissSessionExpired}
       />
     </>
   );
@@ -59,5 +119,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 28,
+  },
+  errorTitle: {
+    color: "#172B2A",
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  errorMessage: {
+    color: "#64746e",
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: "#087F5B",
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryLabel: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

@@ -6,9 +6,6 @@ import { useAuth } from "../../../context/AuthProvider";
 const getSingleParam = (value?: string | string[]) =>
   Array.isArray(value) ? value[0] : value;
 
-const roleRoute = (role?: string) =>
-  role ? `/${role.toLowerCase().replace(/\s+/g, "-")}` : "/citizen";
-
 export default function OAuthCallbackScreen() {
   const params = useLocalSearchParams<{
     code?: string | string[];
@@ -16,9 +13,12 @@ export default function OAuthCallbackScreen() {
     error?: string | string[];
   }>();
   const router = useRouter();
-  const { user, loading, completeGoogleOAuthCode } = useAuth();
+  const { authState, loading, completeGoogleOAuthCode } = useAuth();
   const handledRef = useRef(false);
   const [failed, setFailed] = useState(false);
+  const [failureMessage, setFailureMessage] = useState(
+    "Google sign-in could not be completed. Please try again.",
+  );
 
   useEffect(() => {
     if (loading || handledRef.current) return;
@@ -29,27 +29,34 @@ export default function OAuthCallbackScreen() {
     const error = getSingleParam(params.error);
 
     if (!code || !state || error) {
-      if (user) {
-        router.replace(roleRoute(user.role) as any);
-      } else {
-        setFailed(true);
-        const timeout = setTimeout(() => router.replace("/auth" as any), 1500);
-        return () => clearTimeout(timeout);
+      if (
+        authState === "AUTHENTICATED_COMPLETE" ||
+        authState === "AUTHENTICATED_INCOMPLETE"
+      ) {
+        return;
       }
-      return;
+      setFailed(true);
+      const timeout = setTimeout(() => router.replace("/auth" as any), 1500);
+      return () => clearTimeout(timeout);
     }
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    void completeGoogleOAuthCode(code, state)
-      .then((profile) => router.replace(roleRoute(profile.role) as any))
-      .catch((callbackError: unknown) => {
-        console.error(
-          "[OAuthCallback] Google sign-in could not be completed:",
-          callbackError,
-        );
-        setFailed(true);
-        timeout = setTimeout(() => router.replace("/auth" as any), 1500);
+    void completeGoogleOAuthCode(code, state).catch((error: unknown) => {
+      const superseded =
+        error instanceof Error &&
+        (error.message.includes("newer sign-in") ||
+          error.message.includes("superseded"));
+      setFailureMessage(
+        superseded
+          ? "A newer sign-in was started. Please try the latest attempt."
+          : "This Google sign-in link expired or could not be completed. Please try again.",
+      );
+      console.error("[OAuthCallback] Google sign-in could not be completed.", {
+        errorType: error instanceof Error ? error.name : typeof error,
       });
+      setFailed(true);
+      timeout = setTimeout(() => router.replace("/auth" as any), 1500);
+    });
 
     return () => {
       if (timeout) clearTimeout(timeout);
@@ -59,14 +66,12 @@ export default function OAuthCallbackScreen() {
     params.code,
     params.error,
     params.state,
-    user,
+    authState,
     completeGoogleOAuthCode,
     router,
   ]);
 
-  const message = failed
-    ? "Google sign-in could not be completed. Please try again."
-    : "Completing sign-in…";
+  const message = failed ? failureMessage : "Completing sign-in…";
 
   return (
     <View
