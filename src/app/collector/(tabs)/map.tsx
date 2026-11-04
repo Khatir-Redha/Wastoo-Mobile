@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Linking,
 } from "react-native";
-import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -34,10 +34,13 @@ import CircularPin from "../../../components/map/CircularPin";
 import RouteOverlay from "../../../components/map/RouteOverlay";
 import RouteSummary from "../../../components/map/RouteSummary";
 import {
-  MAPLIBRE_STYLE_URL,
-  MAPLIBRE_STYLE_FALLBACK,
-  DEFAULT_CAMERA,
+  ALGERIA_OVERVIEW,
 } from "../../../components/map/mapConfig";
+import {
+  getLocationIssueMessage,
+  useDeviceLocation,
+} from "../../../hooks/useDeviceLocation";
+import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import { theme } from "../../../theme/tokens";
 
 interface ActiveRoute {
@@ -84,8 +87,9 @@ export default function CollectorMapScreen() {
   const cameraRef = useRef<CameraRef>(null);
   const markerPressedRef = useRef(false);
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const { location, issue: locationIssue, isLoading: isLocating, requestLocation } =
+    useDeviceLocation();
+  const { style: mapStyle, error: mapStyleError } = useMapTilerStyle();
   const [mapPickups, setMapPickups] = useState<MapPickupResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
@@ -97,8 +101,8 @@ export default function CollectorMapScreen() {
   // Routing state
   const [activeRoute, setActiveRoute] = useState<ActiveRoute | null>(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
-  const [mapStyleUrl, setMapStyleUrl] = useState<any>(MAPLIBRE_STYLE_URL);
-  const [hasFallenBack, setHasFallenBack] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(false);
 
   const categories: (WasteCategory | "ALL")[] = [
     "ALL",
@@ -126,59 +130,29 @@ export default function CollectorMapScreen() {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    const getLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          if (isMounted) setLocationError("Location permission denied");
-          return;
-        }
-
-        try {
-          const currentLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          if (isMounted) {
-            setLocation(currentLocation);
-            setLocationError(null);
-          }
-        } catch (currErr) {
-          console.log("getCurrentPositionAsync failed, trying lastKnownLocation:", currErr);
-          
-          const lastKnownLocation = await Location.getLastKnownPositionAsync();
-          if (lastKnownLocation) {
-            if (isMounted) {
-              setLocation(lastKnownLocation);
-              setLocationError(null);
-            }
-          } else {
-            throw new Error("No current or last known location available");
-          }
-        }
-      } catch (err: any) {
-        console.log("location fetch failed:", err);
-        if (isMounted) {
-          setLocationError(err.message || "Location unavailable");
-        }
-      }
-    };
-    getLocation();
-    return () => {
-      isMounted = false;
-    };
-  }, [locationError === null && !location]);
+    if (!mapReady || !location) return;
+    cameraRef.current?.flyTo({
+      center: [location.coords.longitude, location.coords.latitude],
+      zoom: 14.5,
+      duration: 700,
+    });
+  }, [location, mapReady]);
 
   useEffect(() => {
-    if (!location && !locationError) return;
+    if (!location) {
+      setMapPickups([]);
+      setMapCenters([]);
+      setLoading(false);
+      return;
+    }
 
     let isMounted = true;
     const fetchData = async () => {
       setLoading(true);
-      
-      const coords = location 
-        ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-        : DEFAULT_CAMERA.center;
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
 
       try {
         const [pickups, centers] = await Promise.all([
@@ -214,7 +188,7 @@ export default function CollectorMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location, locationError, radius, category]);
+  }, [location, radius, category]);
 
   const handleGetDirections = async (
     target: { latitude: number; longitude: number; name?: string; title?: string }
@@ -282,138 +256,191 @@ export default function CollectorMapScreen() {
     }
   };
 
-  const handleRecenter = () => {
-    if (!location) {
-      Alert.alert("Location Unavailable", "Could not determine your current location.");
-      return;
-    }
+  const handleRecenter = async () => {
+    const currentLocation = await requestLocation();
+    if (!currentLocation || !mapReady) return;
     cameraRef.current?.flyTo({
-      center: [location.coords.longitude, location.coords.latitude],
+      center: [
+        currentLocation.coords.longitude,
+        currentLocation.coords.latitude,
+      ],
       zoom: 15,
       duration: 500,
     });
   };
 
-  if (!location && !locationError) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-        <Text style={styles.loadingText}>Fetching location…</Text>
-      </View>
-    );
-  }
+  const openAppSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.warn("Could not open Wastoo app settings.", error);
+      Alert.alert("Settings unavailable", "Open Wastoo's settings from Android Settings.");
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Map
-        style={styles.map}
-        mapStyle={mapStyleUrl}
-        attribution={false}
-        logo={false}
-        compass={true}
-        compassPosition={{ top: 110, right: 16 }}
-        onDidFailLoadingMap={() => {
-          if (!hasFallenBack) {
-            setHasFallenBack(true);
-            setMapStyleUrl(MAPLIBRE_STYLE_FALLBACK);
-          }
-        }}
-        onPress={() => {
-          if (!markerPressedRef.current) {
-            setSelectedPickup(null);
-            setSelectedCenter(null);
-          }
-          markerPressedRef.current = false;
-        }}
-      >
-        <Camera
-          ref={cameraRef}
-          initialViewState={{
-            center: location 
-              ? [location.coords.longitude, location.coords.latitude] 
-              : [DEFAULT_CAMERA.center.longitude, DEFAULT_CAMERA.center.latitude],
-            zoom: 14.5,
+      {mapStyle ? (
+        <Map
+          style={styles.map}
+          mapStyle={mapStyle}
+          attribution
+          logo={false}
+          compass
+          compassPosition={{ top: 110, right: 16 }}
+          onDidFinishLoadingMap={() => setMapReady(true)}
+          onDidFailLoadingMap={() => {
+            console.warn("MapTiler map style failed to load.");
+            setMapLoadError(true);
           }}
-          maxZoom={19}
-        />
-
-        {location && <UserLocation animated accuracy heading />}
-
-        {activeRoute && (
-          <RouteOverlay
-            route={activeRoute.route}
-            originCoordinate={{
-              latitude: location!.coords.latitude,
-              longitude: location!.coords.longitude,
+          onPress={() => {
+            if (!markerPressedRef.current) {
+              setSelectedPickup(null);
+              setSelectedCenter(null);
+            }
+            markerPressedRef.current = false;
+          }}
+        >
+          <Camera
+            ref={cameraRef}
+            initialViewState={{
+              center: [
+                ALGERIA_OVERVIEW.center.longitude,
+                ALGERIA_OVERVIEW.center.latitude,
+              ],
+              zoom: ALGERIA_OVERVIEW.zoom,
             }}
-            destinationCoordinate={activeRoute.destinationCoordinate}
+            maxZoom={19}
           />
-        )}
 
-        {mapPickups.map((pickup) =>
-          pickup.post?.latitude != null && pickup.post?.longitude != null ? (
-            <CircularPin
-              key={`pickup-${pickup.id}`}
-              coordinate={{
-                latitude: pickup.post.latitude,
-                longitude: pickup.post.longitude,
+          {location && <UserLocation animated accuracy heading />}
+
+          {activeRoute && location && (
+            <RouteOverlay
+              route={activeRoute.route}
+              originCoordinate={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
               }}
-              image={pickup.post.image}
-              ringColor={pickupRingColor(pickup.status)}
-              isSelected={selectedPickup?.id === pickup.id}
+              destinationCoordinate={activeRoute.destinationCoordinate}
+            />
+          )}
+
+          {mapPickups.map((pickup) =>
+            pickup.post?.latitude != null && pickup.post?.longitude != null ? (
+              <CircularPin
+                key={`pickup-${pickup.id}`}
+                coordinate={{
+                  latitude: pickup.post.latitude,
+                  longitude: pickup.post.longitude,
+                }}
+                image={pickup.post.image}
+                ringColor={pickupRingColor(pickup.status)}
+                isSelected={selectedPickup?.id === pickup.id}
+                onPress={() => {
+                  markerPressedRef.current = true;
+                  setSelectedPickup(pickup);
+                  setSelectedCenter(null);
+                  cameraRef.current?.easeTo({
+                    center: [pickup.post!.longitude!, pickup.post!.latitude!],
+                    duration: 400,
+                  });
+                }}
+              />
+            ) : null
+          )}
+
+          {mapCenters.map((center) => (
+            <CircularPin
+              key={`center-${center.id}`}
+              coordinate={{
+                latitude: center.latitude,
+                longitude: center.longitude,
+              }}
+              ringColor="#087F5B"
+              iconName="recycle"
+              isSelected={selectedCenter?.id === center.id}
               onPress={() => {
                 markerPressedRef.current = true;
-                setSelectedPickup(pickup);
-                setSelectedCenter(null);
+                setSelectedCenter(center);
+                setSelectedPickup(null);
                 cameraRef.current?.easeTo({
-                  center: [pickup.post!.longitude!, pickup.post!.latitude!],
+                  center: [center.longitude, center.latitude],
                   duration: 400,
                 });
               }}
             />
-          ) : null
-        )}
-
-        {mapCenters.map((center) => (
-          <CircularPin
-            key={`center-${center.id}`}
-            coordinate={{
-              latitude: center.latitude,
-              longitude: center.longitude,
-            }}
-            ringColor="#087F5B"
-            iconName="recycle"
-            isSelected={selectedCenter?.id === center.id}
-            onPress={() => {
-              markerPressedRef.current = true;
-              setSelectedCenter(center);
-              setSelectedPickup(null);
-              cameraRef.current?.easeTo({
-                center: [center.longitude, center.latitude],
-                duration: 400,
-              });
-            }}
-          />
-        ))}
-      </Map>
-
-      {locationError && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>
-            {locationError === "Location permission denied" 
-              ? "Location access denied. Using default region." 
-              : "Device location unavailable. Using default region."}
+          ))}
+        </Map>
+      ) : (
+        <View style={[styles.map, styles.mapUnavailable]}>
+          <Text style={styles.mapUnavailableText}>
+            {mapStyleError ?? "Loading MapTiler map style…"}
           </Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={() => {
-              setLocationError(null);
-              // Trigger the useEffect by updating a dependency or calling a function
-              // For simplicity, we can just call a function if we extract getLocation
-            }}
-          >
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+        </View>
+      )}
+
+      {mapLoadError && (
+        <View style={styles.mapErrorBanner}>
+          <Text style={styles.errorText}>
+            Map tiles could not load. Check your internet connection and MapTiler API key.
+          </Text>
+        </View>
+      )}
+
+      {(location || isLocating) && (
+        <View
+          style={[
+            styles.locationBadge,
+            locationIssue && styles.locationBadgeAfterError,
+          ]}
+        >
+          {location ? (
+            <Text style={styles.locationBadgeText}>
+              {isLocating || locationIssue === "unavailable"
+                ? "Last known"
+                : "GPS"}{" "}
+              {location.coords.latitude.toFixed(5)},{" "}
+              {location.coords.longitude.toFixed(5)}
+              {location.coords.accuracy != null
+                ? ` · ±${Math.round(location.coords.accuracy)} m`
+                : ""}
+            </Text>
+          ) : (
+            <>
+              <ActivityIndicator size="small" color={theme.colors.emerald[600]} />
+              <Text style={styles.locationBadgeText}>Locating device…</Text>
+            </>
+          )}
+        </View>
+      )}
+
+      {locationIssue && (
+        <View style={styles.errorBanner}>
+          <View style={styles.locationMessageActions}>
+            <Text style={styles.errorText}>
+              {getLocationIssueMessage(locationIssue, Boolean(location))}
+            </Text>
+            {locationIssue === "permission-blocked" && (
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => void openAppSettings()}
+              >
+                <Text style={styles.retryText}>Settings</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => void requestLocation()}
+              disabled={isLocating}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.retryText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -429,14 +456,19 @@ export default function CollectorMapScreen() {
       <View style={styles.floatingControlsRight}>
         <TouchableOpacity
           style={styles.recenterButton}
-          onPress={handleRecenter}
+          onPress={() => void handleRecenter()}
           activeOpacity={0.8}
+          disabled={isLocating}
         >
-          <MaterialCommunityIcons
-            name="crosshairs-gps"
-            size={22}
-            color={theme.colors.emerald[600]}
-          />
+          {isLocating ? (
+            <ActivityIndicator size="small" color={theme.colors.emerald[600]} />
+          ) : (
+            <MaterialCommunityIcons
+              name="crosshairs-gps"
+              size={22}
+              color={theme.colors.emerald[600]}
+            />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -503,21 +535,11 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    color: theme.colors.text.secondary,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
   errorBanner: {
     position: "absolute",
-    top: 60,
+    top: 96,
     left: 20,
-    right: 20,
+    right: 72,
     backgroundColor: theme.colors.canvas.primary,
     padding: 12,
     borderRadius: 12,
@@ -536,6 +558,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  locationMessageActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   retryButton: {
     backgroundColor: theme.colors.emerald[500],
     paddingHorizontal: 12,
@@ -546,6 +573,47 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 12,
     fontFamily: theme.typography.fontFamily.bold,
+  },
+  locationBadge: {
+    position: "absolute",
+    left: 16,
+    top: 104,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: theme.colors.canvas.primary,
+    ...theme.shadows.sm,
+  },
+  locationBadgeAfterError: {
+    top: 170,
+  },
+  locationBadgeText: {
+    color: theme.colors.text.primary,
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  mapUnavailable: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  mapUnavailableText: {
+    color: theme.colors.text.secondary,
+    textAlign: "center",
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  mapErrorBanner: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    right: 16,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: theme.colors.canvas.primary,
+    ...theme.shadows.md,
   },
   floatingControlsRight: {
     position: "absolute",

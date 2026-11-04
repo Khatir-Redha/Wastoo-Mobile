@@ -1,8 +1,8 @@
 # Welcome to your Expo app 👋
 
-## New Architecture note
+## New Architecture
 
-This project disables React Native's New Architecture (`newArchEnabled: false` in `app.json`). This is required because `@maplibre/maplibre-react-native` does not yet support the New Architecture (Fabric/TurboModules) and fails to register modules such as `MLRNCameraModule` when it is enabled. See the MapLibre React Native repo for the latest status on New Architecture support.
+This project enables React Native's New Architecture (`newArchEnabled: true` in `app.json`), which is required by the installed Reanimated 4 version. The MapLibre React Native 11.5.0 native package is configured through its Expo config plugin and uses React Native's generated native component interfaces.
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
@@ -62,3 +62,7 @@ Join our community of developers creating universal apps.
 ## Android Google authentication
 
 The backend-mediated Android OAuth setup, stable HTTPS development endpoint, Google Console configuration, rebuild commands, and device test checklist are documented in [AUTHENTICATION_SETUP.md](../AUTHENTICATION_SETUP.md).
+
+## Android maps and location
+
+MapLibre/MapTiler setup, foreground GPS behavior, Android development APK build commands, and a physical-device test checklist are documented in [MAP_SETUP.md](./MAP_SETUP.md).

@@ -15,11 +15,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { calculateDistance } from "haversine-toolkit";
 import MapService, {
   MapCenterResponse,
@@ -39,10 +39,13 @@ import CircularPin from "../../../components/map/CircularPin";
 import RouteOverlay from "../../../components/map/RouteOverlay";
 import RouteSummary from "../../../components/map/RouteSummary";
 import {
-  MAPLIBRE_STYLE_URL,
-  MAPLIBRE_STYLE_FALLBACK,
-  DEFAULT_CAMERA,
+  ALGERIA_OVERVIEW,
 } from "../../../components/map/mapConfig";
+import {
+  getLocationIssueMessage,
+  useDeviceLocation,
+} from "../../../hooks/useDeviceLocation";
+import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import NotificationBell from "../../../components/NotificationBell";
 import BadgesButton from "../../../components/BadgesButton";
 import { theme } from "../../../theme/tokens";
@@ -104,8 +107,11 @@ export default function PostsAndMapScreen() {
     params.view === "map" ? "map" : "posts"
   );
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const { location, issue: locationIssue, isLoading: isLocating, requestLocation } =
+    useDeviceLocation();
+  const { style: mapStyle, error: mapStyleError } = useMapTilerStyle(
+    viewMode === "map"
+  );
   const [mapPosts, setMapPosts] = useState<MapPostsResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
@@ -122,8 +128,8 @@ export default function PostsAndMapScreen() {
 
   // MapLibre Camera Ref & Style
   const cameraRef = useRef<CameraRef>(null);
-  const [mapStyleUrl, setMapStyleUrl] = useState<any>(MAPLIBRE_STYLE_URL);
-  const [hasFallenBack, setHasFallenBack] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(false);
 
   // Posts tab state
   const [posts, setPosts] = useState<Post[]>([]);
@@ -158,62 +164,31 @@ export default function PostsAndMapScreen() {
     return `${distanceKm.toFixed(1)} km away`;
   };
 
-  // ── Location Fetching ──────────────────────────────────────────
   useEffect(() => {
-    let isMounted = true;
-    const getLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          if (isMounted) setLocationError("Location permission denied");
-          return;
-        }
-
-        try {
-          const currentLocation = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          if (isMounted) {
-            setLocation(currentLocation);
-            setLocationError(null);
-          }
-        } catch (currErr) {
-          console.log("getCurrentPositionAsync failed, trying lastKnownLocation:", currErr);
-          
-          const lastKnownLocation = await Location.getLastKnownPositionAsync();
-          if (lastKnownLocation) {
-            if (isMounted) {
-              setLocation(lastKnownLocation);
-              setLocationError(null);
-            }
-          } else {
-            throw new Error("No current or last known location available");
-          }
-        }
-      } catch (err: any) {
-        console.log("location fetch failed:", err);
-        if (isMounted) {
-          setLocationError(err.message || "Location unavailable");
-        }
-      }
-    };
-
-    getLocation();
-    return () => {
-      isMounted = false;
-    };
-  }, [locationError === null && !location]);
+    if (!mapReady || !location) return;
+    cameraRef.current?.flyTo({
+      center: [location.coords.longitude, location.coords.latitude],
+      zoom: 14.5,
+      duration: 700,
+    });
+  }, [location, mapReady]);
 
   // ── Fetch Map Markers (Posts & Centers) ────────────────────────
   useEffect(() => {
-    if (!location && !locationError) return;
+    if (!location) {
+      setMapPosts([]);
+      setMapCenters([]);
+      setLoadingPosts(false);
+      return;
+    }
 
     let isMounted = true;
     const fetchMarkers = async () => {
       setLoadingPosts(true);
-      const coords = location 
-        ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-        : DEFAULT_CAMERA.center;
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
       try {
         const [nearByPosts, nearByCenters] = await Promise.all([
           MapService.getMapPosts({
@@ -257,7 +232,7 @@ export default function PostsAndMapScreen() {
     return () => {
       isMounted = false;
     };
-  }, [location, locationError, radius, category, params.routePostId]);
+  }, [location, radius, category, params.routePostId]);
 
   // ── Fetch Posts for List View ──────────────────────────────────
   useEffect(() => {
@@ -369,16 +344,26 @@ export default function PostsAndMapScreen() {
     }
   };
 
-  const handleRecenter = () => {
-    if (!location) {
-      Alert.alert("Location Unavailable", "Could not determine your current location.");
-      return;
-    }
+  const handleRecenter = async () => {
+    const currentLocation = await requestLocation();
+    if (!currentLocation || !mapReady) return;
     cameraRef.current?.flyTo({
-      center: [location.coords.longitude, location.coords.latitude],
+      center: [
+        currentLocation.coords.longitude,
+        currentLocation.coords.latitude,
+      ],
       zoom: 15,
       duration: 600,
     });
+  };
+
+  const openAppSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.warn("Could not open Wastoo app settings.", error);
+      Alert.alert("Settings unavailable", "Open Wastoo's settings from Android Settings.");
+    }
   };
 
   // ── Filter markers based on map search input ────────────────────
@@ -637,22 +622,19 @@ export default function PostsAndMapScreen() {
   // ── Redesigned Map View ─────────────────────────────────────────
   const renderMap = () => (
     <View style={styles.flex}>
-      {location || locationError ? (
-        <>
-          {/* Main MapLibre Map */}
+      <>
+        {mapStyle ? (
           <Map
             style={styles.map}
-            mapStyle={mapStyleUrl}
-            attribution={false}
+            mapStyle={mapStyle}
+            attribution
             logo={false}
-            compass={true}
+            compass
             compassPosition={{ top: 120, right: 16 }}
+            onDidFinishLoadingMap={() => setMapReady(true)}
             onDidFailLoadingMap={() => {
-              if (!hasFallenBack) {
-                setHasFallenBack(true);
-                console.log("Vector tile load failed, falling back to OSM raster");
-                setMapStyleUrl(MAPLIBRE_STYLE_FALLBACK);
-              }
+              console.warn("MapTiler map style failed to load.");
+              setMapLoadError(true);
             }}
             onPress={() => {
               if (!markerPressedRef.current) {
@@ -665,10 +647,11 @@ export default function PostsAndMapScreen() {
             <Camera
               ref={cameraRef}
               initialViewState={{
-                center: location 
-                  ? [location.coords.longitude, location.coords.latitude] 
-                  : [DEFAULT_CAMERA.center.longitude, DEFAULT_CAMERA.center.latitude],
-                zoom: 14.5,
+                center: [
+                  ALGERIA_OVERVIEW.center.longitude,
+                  ALGERIA_OVERVIEW.center.latitude,
+                ],
+                zoom: ALGERIA_OVERVIEW.zoom,
               }}
               maxZoom={19}
             />
@@ -748,8 +731,80 @@ export default function PostsAndMapScreen() {
               );
             })}
           </Map>
+        ) : (
+          <View style={[styles.map, styles.mapUnavailable]}>
+            <Text style={styles.mapUnavailableText}>
+              {mapStyleError ?? "Loading MapTiler map style…"}
+            </Text>
+          </View>
+        )}
 
-          {/* Floating Top Search Bar (Google Maps style) */}
+        {mapLoadError && (
+          <View style={styles.mapErrorBanner}>
+            <Text style={styles.locationErrorText}>
+              Map tiles could not load. Check your internet connection and MapTiler API key.
+            </Text>
+          </View>
+        )}
+
+        {(location || isLocating) && (
+          <View
+            style={[
+              styles.locationBadge,
+              locationIssue && styles.locationBadgeAfterError,
+            ]}
+          >
+            {location ? (
+              <Text style={styles.locationBadgeText}>
+                {isLocating || locationIssue === "unavailable"
+                  ? "Last known"
+                  : "GPS"}{" "}
+                {location.coords.latitude.toFixed(5)},{" "}
+                {location.coords.longitude.toFixed(5)}
+                {location.coords.accuracy != null
+                  ? ` · ±${Math.round(location.coords.accuracy)} m`
+                  : ""}
+              </Text>
+            ) : (
+              <>
+                <ActivityIndicator
+                  size="small"
+                  color={theme.colors.emerald[600]}
+                />
+                <Text style={styles.locationBadgeText}>Locating device…</Text>
+              </>
+            )}
+          </View>
+        )}
+
+        {locationIssue && (
+          <View style={styles.locationErrorBanner}>
+            <Text style={styles.locationErrorText}>
+              {getLocationIssueMessage(locationIssue, Boolean(location))}
+            </Text>
+            {locationIssue === "permission-blocked" && (
+              <TouchableOpacity
+                style={styles.locationRetryButton}
+                onPress={() => void openAppSettings()}
+              >
+                <Text style={styles.locationRetryText}>Settings</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.locationRetryButton}
+              onPress={() => void requestLocation()}
+              disabled={isLocating}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.locationRetryText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Floating Top Search Bar (Google Maps style) */}
           <View style={styles.floatingTopContainer}>
             <View style={styles.floatingSearchBar}>
               <Feather
@@ -791,14 +846,19 @@ export default function PostsAndMapScreen() {
           <View style={styles.floatingControlsRight}>
             <TouchableOpacity
               style={styles.recenterButton}
-              onPress={handleRecenter}
+              onPress={() => void handleRecenter()}
               activeOpacity={0.8}
+              disabled={isLocating}
             >
-              <MaterialCommunityIcons
-                name="crosshairs-gps"
-                size={22}
-                color={theme.colors.emerald[600]}
-              />
+              {isLocating ? (
+                <ActivityIndicator size="small" color={theme.colors.emerald[600]} />
+              ) : (
+                <MaterialCommunityIcons
+                  name="crosshairs-gps"
+                  size={22}
+                  color={theme.colors.emerald[600]}
+                />
+              )}
             </TouchableOpacity>
           </View>
 
@@ -845,13 +905,7 @@ export default function PostsAndMapScreen() {
               loading={calculatingRoute}
             />
           )}
-        </>
-      ) : (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-          <Text style={styles.loadingText}>Fetching your location…</Text>
-        </View>
-      )}
+      </>
     </View>
   );
 
@@ -873,6 +927,16 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapUnavailable: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  mapUnavailableText: {
+    color: theme.colors.text.secondary,
+    textAlign: "center",
+    fontFamily: theme.typography.fontFamily.medium,
   },
   header: {
     paddingHorizontal: theme.spacing.xl,
@@ -1113,5 +1177,71 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border.light,
     ...theme.shadows.md,
     elevation: 5,
+  },
+  mapErrorBanner: {
+    position: "absolute",
+    top: 76,
+    left: 16,
+    right: 16,
+    zIndex: 11,
+    padding: 12,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.canvas.primary,
+    ...theme.shadows.md,
+  },
+  locationErrorBanner: {
+    position: "absolute",
+    top: 110,
+    left: 16,
+    right: 72,
+    zIndex: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: theme.radius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.error[500],
+    backgroundColor: theme.colors.canvas.primary,
+    ...theme.shadows.md,
+  },
+  locationErrorText: {
+    flex: 1,
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.xs.size,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  locationRetryButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.emerald[500],
+  },
+  locationRetryText: {
+    color: theme.colors.text.inverse,
+    fontSize: theme.typography.fontSize.xs.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  locationBadge: {
+    position: "absolute",
+    left: 16,
+    top: 112,
+    zIndex: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.canvas.primary,
+    ...theme.shadows.sm,
+  },
+  locationBadgeAfterError: {
+    top: 190,
+  },
+  locationBadgeText: {
+    color: theme.colors.text.primary,
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
 });
