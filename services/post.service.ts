@@ -13,16 +13,26 @@ export interface GetPostsQueryDto {
 
 export interface CreatePostDto {
   title: string;
-  description: string;
+  description?: string;
   category: string;
   quantity: number;
   images: string[];
+  price?: number;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
 }
 
-export interface UpdatePostDto extends Partial<CreatePostDto> {}
+export type UpdatePostDto = Partial<CreatePostDto>;
 
 export interface PostImage {
   url: string;
+}
+
+export interface PostAuthor {
+  name?: string;
+  avatar?: string;
+  photo?: string;
 }
 
 export interface Post {
@@ -33,7 +43,14 @@ export interface Post {
   createdAt: string;
   updatedAt: string;
   images: PostImage[];
-  // add other fields like title, description based on your Prisma schema
+  title?: string;
+  description?: string;
+  quantity?: number | null;
+  weight?: number | null;
+  address?: string | null;
+  location?: string | null;
+  author?: PostAuthor;
+  User?: PostAuthor;
 }
 
 export interface PaginatedPosts {

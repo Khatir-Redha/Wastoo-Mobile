@@ -1,11 +1,19 @@
 import React from "react";
-import { View, Platform, TouchableOpacity } from "react-native";
+import { View, Platform } from "react-native";
 import { Tabs, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "../../../theme/tokens";
 
 export default function TabsLayout() {
   const router = useRouter();
+
+  const openCreatePost = () => {
+    const targetRoute = "/citizen/create-post";
+    console.info("[CreatePost] PLUS_BUTTON_PRESSED");
+    console.info("[CreatePost] NAVIGATION_STARTED");
+    console.info("[CreatePost] TARGET_ROUTE", targetRoute);
+    router.push(targetRoute);
+  };
 
   return (
     <Tabs
@@ -69,18 +77,11 @@ export default function TabsLayout() {
               <Feather name="plus" size={26} color={theme.colors.text.inverse} />
             </View>
           ),
-          tabBarButton: (props) => (
-            <TouchableOpacity
-              {...props}
-              onPress={() => router.push("/create-post")}
-              activeOpacity={0.8}
-            />
-          ),
         }}
         listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push("/create-post");
+          tabPress: (event) => {
+            event.preventDefault();
+            openCreatePost();
           },
         }}
       />

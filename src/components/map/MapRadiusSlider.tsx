@@ -50,7 +50,8 @@ export default function MapRadiusSlider({
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Radius: ${radius} km. Open radius settings`}
+        accessibilityLabel={`Search radius, ${radius} kilometers`}
+        accessibilityState={{ expanded: visible }}
         onPress={openSheet}
         style={({ pressed }) => [
           styles.radiusChip,
@@ -60,15 +61,13 @@ export default function MapRadiusSlider({
       >
         <MaterialCommunityIcons
           name="map-marker-radius-outline"
-          size={18}
+          size={19}
           color={theme.colors.emerald[600]}
         />
-        <Text style={styles.radiusText}>Radius: {radius} km</Text>
-        {loadingPosts ? (
-          <View style={styles.loadingDot} />
-        ) : (
-          <Feather name="chevron-up" size={16} color={theme.colors.text.tertiary} />
-        )}
+        <Text style={styles.radiusLabel}>Search radius</Text>
+        <Text style={styles.radiusValue}>{radius} km</Text>
+        {loadingPosts && <View style={styles.loadingDot} />}
+        <Feather name="chevron-down" size={16} color={theme.colors.text.tertiary} />
       </Pressable>
 
       <Modal
@@ -89,9 +88,9 @@ export default function MapRadiusSlider({
             <View style={styles.handle} />
             <View style={styles.sheetHeader}>
               <View>
-                <Text style={styles.sheetTitle}>Search area</Text>
+                <Text style={styles.sheetTitle}>Search radius</Text>
                 <Text style={styles.sheetSubtitle}>
-                  Find pickups near your current location
+                  Choose how far away to search.
                 </Text>
               </View>
               <View style={styles.valueBadge}>
@@ -183,20 +182,29 @@ const styles = StyleSheet.create({
     minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.md,
+    gap: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: theme.radius.full,
     borderWidth: 1,
-    borderColor: "#E3ECE7",
+    borderColor: "#DCE9E2",
     backgroundColor: "#FFFFFF",
-    ...theme.shadows.md,
+    shadowColor: "#172B2A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 7,
     zIndex: 30,
-    elevation: 12,
+    elevation: 3,
   },
-  radiusText: {
+  radiusLabel: {
     color: theme.colors.forest[500],
     fontSize: theme.typography.fontSize.sm.size,
-    fontFamily: theme.typography.fontFamily.semiBold,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  radiusValue: {
+    color: theme.colors.emerald[700],
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.bold,
   },
   loadingDot: {
     width: 7,

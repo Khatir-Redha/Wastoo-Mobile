@@ -27,6 +27,8 @@ function NavigationGuard() {
   const lastRedirect = useRef<string | null>(null);
   const inAuthGroup = segments[0] === "(auth)" || segments[0] === "auth";
   const inOnboarding = segments[0] === "onboarding";
+  const inSharedAuthenticatedRoute =
+    segments[0] === "notifications" || segments[0] === "pickups";
 
   const expectedRoute = getAuthRoute(authState, user?.role);
 
@@ -36,8 +38,9 @@ function NavigationGuard() {
       : authState === "AUTHENTICATED_INCOMPLETE"
         ? inOnboarding
         : authState === "AUTHENTICATED_COMPLETE" && expectedRoute
-          ? segments[0] === expectedRoute.slice(1)
-          : false;
+        ? segments[0] === expectedRoute.slice(1) ||
+          inSharedAuthenticatedRoute
+        : false;
 
   useEffect(() => {
     if (
@@ -55,8 +58,30 @@ function NavigationGuard() {
 
     if (lastRedirect.current === expectedRoute) return;
     lastRedirect.current = expectedRoute;
+    if (segments[0] === "notifications") {
+      console.warn("[Notifications] REDIRECT_TRIGGERED", {
+        from: `/${segments.join("/")}`,
+        to: expectedRoute,
+        condition:
+          authState === "AUTHENTICATED_COMPLETE"
+            ? "notification route was not accepted as a shared authenticated route"
+            : `auth state ${authState} is not authenticated and complete`,
+        authState,
+        role: user?.role ?? null,
+        stack: new Error().stack,
+      });
+    }
+    if (segments.includes("create-post")) {
+      console.warn("[CreatePost] REDIRECT_TRIGGERED", {
+        from: `/${segments.join("/")}`,
+        to: expectedRoute,
+        authState,
+        role: user?.role ?? null,
+        stack: new Error().stack,
+      });
+    }
     router.replace(expectedRoute as any);
-  }, [authState, expectedRoute, isAtExpectedRoute, router]);
+  }, [authState, expectedRoute, isAtExpectedRoute, router, segments, user?.role]);
 
   if (authState === "INITIALIZING") {
     return (

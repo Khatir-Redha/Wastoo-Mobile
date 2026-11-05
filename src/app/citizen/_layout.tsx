@@ -11,7 +11,7 @@ export default function CitizenRootLayout() {
     if (!user) {
       router.replace('/auth' as any);
     }
-  }, [user, loading]);
+  }, [user, loading, router]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -29,6 +29,13 @@ export default function CitizenRootLayout() {
       {/* Badges / gamification */}
       <Stack.Screen
         name="gamification"
+        options={{
+          animation: 'slide_from_right',
+        }}
+      />
+
+      <Stack.Screen
+        name="create-post"
         options={{
           animation: 'slide_from_right',
         }}

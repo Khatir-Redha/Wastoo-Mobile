@@ -39,6 +39,7 @@ export interface Pickup {
   cancel_reason?: string;
   cancel_notes?: string;
   collected_weight?: number;
+  deleted_at?: string | null;
   createdAt: string;
   updatedAt: string;
 }

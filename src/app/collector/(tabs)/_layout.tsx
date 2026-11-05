@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, Platform, TouchableOpacity } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
+import { Platform } from 'react-native';
+import { Tabs } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { theme } from '../../../theme/tokens';
 
 export default function CollectorTabsLayout() {
-  const router = useRouter();
   return (
     <Tabs
       screenOptions={{
@@ -55,6 +54,12 @@ export default function CollectorTabsLayout() {
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="package-variant-closed" size={24} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="available-pickups"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen

@@ -1,9 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Platform, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import PostService, { Post } from '../../../../services/post.service';
+import PostService, { GetPostsQueryDto, Post } from '../../../../services/post.service';
 import NotificationBell from '../../../components/NotificationBell';
 import BadgesButton from '../../../components/BadgesButton';
 import { useAuth } from '../../../../context/AuthProvider';
@@ -29,26 +29,57 @@ export default function BrowseScreen() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const fetchPosts = useCallback(async (refresh = false) => {
+    if (refresh) setIsRefreshing(true);
+    else setIsLoading(true);
+    setPostsError(null);
+    try {
+      const query: GetPostsQueryDto = {
+        ...(activeCategory !== 'all' && {
+          category: activeCategory.toUpperCase(),
+        }),
+        page: 1,
+        limit: 20,
+      };
+      const response = await PostService.getAllPosts(query);
+      setPosts(response.data);
+    } catch (error) {
+      console.error('Error fetching marketplace posts:', error);
+      setPostsError(
+        error instanceof Error ? error.message : 'Failed to load listings',
+      );
+      setPosts([]);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [activeCategory]);
+
   useEffect(() => {
-    const fetchPosts = async () => {
-      setIsLoading(true);
-      try {
-        const query: any = {};
-        if (activeCategory !== 'all') query.category = activeCategory;
-        if (searchTerm.trim()) query.search = searchTerm;
-        const response = await PostService.getAllPosts(query);
-        const postsArray = Array.isArray(response) ? response : (response?.data || []);
-        setPosts(postsArray);
-      } catch (error) {
-        console.error('Error fetching posts:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchPosts();
-  }, [activeCategory, searchTerm]);
+    void fetchPosts();
+  }, [fetchPosts]);
+
+  const filteredPosts = useMemo(() => {
+    const term = searchTerm.trim().toLocaleLowerCase();
+    if (!term) return posts;
+    return posts.filter((post) =>
+      [post.title, post.description, post.address]
+        .filter(Boolean)
+        .some((value) => value?.toLocaleLowerCase().includes(term)),
+    );
+  }, [posts, searchTerm]);
+
+  const openCreatePost = () => {
+    const targetRoute = "/citizen/create-post";
+    console.info("[CreatePost] PLUS_BUTTON_PRESSED");
+    console.info("[CreatePost] NAVIGATION_STARTED");
+    console.info("[CreatePost] TARGET_ROUTE", targetRoute);
+    router.push(targetRoute);
+  };
 
   const renderHeader = () => {
     const firstName = user?.name?.split(' ')[0] || 'Friend';
@@ -89,7 +120,7 @@ export default function BrowseScreen() {
             title="List Your Waste"
             variant="primary"
             size="md"
-            onPress={() => router.push('/create-post')}
+            onPress={openCreatePost}
             icon={<Feather name="plus" size={20} color={theme.colors.text.inverse} />}
             iconPosition="left"
             fullWidth
@@ -158,7 +189,6 @@ export default function BrowseScreen() {
       rawUrl = rawUrl.replace('http://', 'https://');
     }
     const displayImage = rawUrl;
-    const weight = (post as any).weight || 'TBD kg';
     const isFree = (post as any).price === 0 || !(post as any).price;
     const badgeText = isFree ? 'FREE' : '$' + (post as any).price;
     const formattedDate = post.createdAt
@@ -213,7 +243,17 @@ export default function BrowseScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.secondary }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 160 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => void fetchPosts(true)}
+            tintColor={theme.colors.emerald[500]}
+          />
+        }
+      >
         {renderHeader()}
         {renderPrimaryAction()}
         {renderSearchBar()}
@@ -222,7 +262,24 @@ export default function BrowseScreen() {
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
           </View>
-        ) : posts.length === 0 ? (
+        ) : postsError ? (
+          <View style={{ alignItems: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: 40 }}>
+            <Feather name="wifi-off" size={48} color={theme.colors.text.tertiary} />
+            <Text style={{ marginTop: theme.spacing.md, color: theme.colors.text.primary, fontFamily: theme.typography.fontFamily.semiBold }}>
+              Could not load listings
+            </Text>
+            <Text style={{ marginTop: theme.spacing.xs, color: theme.colors.text.secondary, textAlign: 'center' }}>
+              {postsError}
+            </Text>
+            <Button
+              title="Try again"
+              variant="primary"
+              size="sm"
+              onPress={() => void fetchPosts()}
+              style={{ marginTop: theme.spacing.lg }}
+            />
+          </View>
+        ) : filteredPosts.length === 0 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
             <View style={{ alignItems: 'center', paddingHorizontal: theme.spacing.xl }}>
               <Feather name="refresh-cw" size={64} color={theme.colors.mint[500]} />
@@ -236,7 +293,7 @@ export default function BrowseScreen() {
           </View>
         ) : (
           <View style={{ paddingHorizontal: theme.spacing.lg, flexDirection: 'row', flexWrap: 'wrap' }}>
-            {posts.map(renderPostCard)}
+            {filteredPosts.map(renderPostCard)}
           </View>
         )}
       </ScrollView>

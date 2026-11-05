@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,14 +12,16 @@ import {
   KeyboardAvoidingView,
   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import * as ImagePicker from "expo-image-picker";
-import PostService from "../../services/post.service";
+import * as SecureStore from "expo-secure-store";
+import { useAuth } from "../../../context/AuthProvider";
+import PostService, { CreatePostDto } from "../../../services/post.service";
 import PickupLocationMap, {
   PickupLocation,
-} from "../components/map/PickupLocationMap";
+} from "../../components/map/PickupLocationMap";
 
 const CATEGORIES = [
   { id: "PLASTIC", name: "Plastic", icon: "bottle-tonic-outline" },
@@ -36,6 +38,7 @@ interface UploadedImage {
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const { user, authState, loading } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -51,6 +54,44 @@ export default function CreatePostScreen() {
   const [backendLocation] = useState<PickupLocation | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<PickupLocation | null>(null);
 
+  useEffect(() => {
+    console.info("[CreatePost] SCREEN_MOUNTED");
+    console.info("[CreatePost] INITIALIZATION_STARTED");
+    console.info("[CreatePost] INITIALIZATION_COMPLETED", {
+      apiDependencies: [],
+    });
+
+    return () => {
+      console.info("[CreatePost] SCREEN_UNMOUNTED");
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      console.info("[CreatePost] SCREEN_FOCUSED");
+      return () => console.info("[CreatePost] SCREEN_BLURRED");
+    }, []),
+  );
+
+  useEffect(() => {
+    console.info("[CreatePost] USER_ROLE", user?.role ?? null);
+    void SecureStore.getItemAsync("access_token")
+      .then((accessToken) => {
+        console.info("[CreatePost] AUTH_STATE", {
+          authState,
+          loading,
+          profileAvailable: Boolean(user),
+          accessTokenAvailable: Boolean(accessToken),
+        });
+      })
+      .catch((error: unknown) => {
+        console.error("[CreatePost] INITIALIZATION_FAILED", {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      });
+  }, [authState, loading, user]);
+
   const uploadPickedImages = async (uris: string[]) => {
     setIsUploading(true);
     try {
@@ -59,7 +100,7 @@ export default function CreatePostScreen() {
       );
       setImages((prev) => [...prev, ...results]);
     } catch (error) {
-      console.error("Image upload failed:", error);
+      console.error("[Post publish][image-upload] Upload request failed:", error);
       Alert.alert("Upload Failed", "Could not upload one or more images. Please try again.");
     } finally {
       setIsUploading(false);
@@ -142,7 +183,7 @@ export default function CreatePostScreen() {
 
     setIsPublishing(true);
     try {
-      const postData: any = {
+      const postData: CreatePostDto = {
         title: title.trim(),
         category,
         quantity: Number(weight) || 1,
@@ -150,6 +191,7 @@ export default function CreatePostScreen() {
         images: images.map((img) => img.url),
         latitude: selectedLocation.latitude,
         longitude: selectedLocation.longitude,
+        ...(selectedLocation.address && { address: selectedLocation.address }),
       };
 
       if (description.trim().length >= 3) {
@@ -159,7 +201,7 @@ export default function CreatePostScreen() {
       await PostService.createPost(postData);
       router.back();
     } catch (error: any) {
-      console.error("Failed to publish listing:", error?.response?.data || error);
+      console.error("[Post publish][create-request] Failed to create listing:", error?.response?.data || error);
       const serverMessage = error?.response?.data?.message;
       const errorMsg = Array.isArray(serverMessage)
         ? serverMessage.join("\n")

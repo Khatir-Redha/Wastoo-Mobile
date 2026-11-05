@@ -4,7 +4,6 @@ import {
   UserLocation,
   type CameraRef,
 } from "@maplibre/maplibre-react-native";
-import { Image } from "expo-image";
 import { useEffect, useRef, useState, useMemo } from "react";
 import {
   ActivityIndicator,
@@ -29,7 +28,6 @@ import MapService, {
   PostStatus,
   WasteCategory,
 } from "../../../../services/map.service";
-import PostService, { Post } from "../../../../services/post.service";
 import RoutingService, {
   RouteResult,
 } from "../../../../services/routing.service";
@@ -49,6 +47,7 @@ import {
 import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import NotificationBell from "../../../components/NotificationBell";
 import BadgesButton from "../../../components/BadgesButton";
+import PostFeed from "../../../components/posts/PostFeed";
 import { theme } from "../../../theme/tokens";
 
 type ViewMode = "posts" | "map";
@@ -60,21 +59,6 @@ interface ActiveRoute {
   targetType: "post" | "center";
   targetId: number;
 }
-
-const POST_CATEGORIES = [
-  { id: "ALL", name: "All", icon: "view-grid" },
-  { id: "PLASTIC", name: "Plastic", icon: "recycle" },
-  { id: "ORGANIC", name: "Organic", icon: "leaf" },
-  { id: "GLASS", name: "Glass", icon: "bottle-wine-outline" },
-  { id: "METAL", name: "Metal", icon: "cube-scan" },
-];
-
-const getCategoryIcon = (category?: string) => {
-  const cat = POST_CATEGORIES.find(
-    (c) => c.id.toLowerCase() === category?.toLowerCase()
-  );
-  return cat ? cat.icon : "package-variant-closed";
-};
 
 /** Compute geographic bounding box [west, south, east, north] for a route */
 function getRouteBounds(
@@ -133,12 +117,6 @@ export default function PostsAndMapScreen() {
   const cameraRef = useRef<CameraRef>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapLoadError, setMapLoadError] = useState(false);
-
-  // Posts tab state
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [postsLoading, setPostsLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState("ALL");
-  const [postSearchTerm, setPostSearchTerm] = useState("");
 
   const markerPressedRef = useRef(false);
 
@@ -236,35 +214,6 @@ export default function PostsAndMapScreen() {
       isMounted = false;
     };
   }, [location, radius, category, params.routePostId]);
-
-  // ── Fetch Posts for List View ──────────────────────────────────
-  useEffect(() => {
-    let isMounted = true;
-    const fetchAllPosts = async () => {
-      setPostsLoading(true);
-      try {
-        const query: any = {};
-        if (activeCategory !== "ALL")
-          query.category = activeCategory.toLowerCase();
-        if (postSearchTerm.trim()) query.search = postSearchTerm.trim();
-        const response = await PostService.getAllPosts(query);
-        const postsArray = Array.isArray(response)
-          ? response
-          : response?.data || [];
-        if (isMounted) setPosts(postsArray);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-        if (isMounted) setPosts([]);
-      } finally {
-        if (isMounted) setPostsLoading(false);
-      }
-    };
-
-    fetchAllPosts();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeCategory, postSearchTerm]);
 
   // ── Real Road Routing Handler ──────────────────────────────────
   const handleGetDirections = async (
@@ -469,171 +418,7 @@ export default function PostsAndMapScreen() {
   );
 
   // ── Posts List View ─────────────────────────────────────────────
-  const renderPosts = () => (
-    <View style={styles.flex}>
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchBar}>
-          <Feather name="search" size={18} color={theme.colors.text.tertiary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search materials, locations..."
-            placeholderTextColor={theme.colors.text.quaternary}
-            value={postSearchTerm}
-            onChangeText={setPostSearchTerm}
-          />
-          {postSearchTerm.length > 0 && (
-            <TouchableOpacity onPress={() => setPostSearchTerm("")}>
-              <Feather name="x" size={16} color={theme.colors.text.tertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.categoryRow}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryContent}
-        >
-          {POST_CATEGORIES.map((cat) => {
-            const isActive = activeCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => setActiveCategory(cat.id)}
-                style={[
-                  styles.categoryChip,
-                  isActive && styles.categoryChipActive,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={cat.icon as any}
-                  size={18}
-                  color={
-                    isActive
-                      ? theme.colors.text.inverse
-                      : theme.colors.emerald[500]
-                  }
-                />
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    isActive && styles.categoryChipTextActive,
-                  ]}
-                >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {postsLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-        </View>
-      ) : posts.length === 0 ? (
-        <View style={styles.centered}>
-          <MaterialCommunityIcons
-            name="clipboard-text-outline"
-            size={48}
-            color={theme.colors.border.default}
-          />
-          <Text style={styles.emptyText}>No materials found</Text>
-          <Text style={styles.emptySubtext}>Try a different category</Text>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.postsList}
-          showsVerticalScrollIndicator={false}
-        >
-          {posts.map(renderPostRow)}
-        </ScrollView>
-      )}
-    </View>
-  );
-
-  const renderPostRow = (post: Post) => {
-    let rawUrl = post.images?.[0]?.url?.trim();
-    if (!rawUrl) {
-      rawUrl =
-        "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80";
-    } else if (
-      rawUrl.includes("cloudinary.com") &&
-      rawUrl.startsWith("http://")
-    ) {
-      rawUrl = rawUrl.replace("http://", "https://");
-    }
-    const isFree = (post as any).price === 0 || !(post as any).price;
-    const badgeText = isFree ? "FREE" : `$${(post as any).price}`;
-    const formattedDate = post.createdAt
-      ? new Date(post.createdAt).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        })
-      : "Recent";
-
-    return (
-      <TouchableOpacity
-        key={post.id}
-        activeOpacity={0.8}
-        onPress={() => router.push(`/citizen/${post.id}`)}
-        style={styles.postCard}
-      >
-        <Image
-          source={{ uri: rawUrl }}
-          style={styles.postImage}
-          contentFit="cover"
-        />
-        <View style={styles.postBody}>
-          <View style={styles.postTitleRow}>
-            <Text numberOfLines={1} style={styles.postTitle}>
-              {(post as any).title || "Untitled Material"}
-            </Text>
-            <View
-              style={[
-                styles.priceBadge,
-                {
-                  backgroundColor: isFree
-                    ? theme.colors.success
-                    : theme.colors.warning,
-                },
-              ]}
-            >
-              <Text style={styles.priceBadgeText}>{badgeText}</Text>
-            </View>
-          </View>
-
-          <View style={styles.postMetaRow}>
-            <MaterialCommunityIcons
-              name={getCategoryIcon(post.category) as any}
-              size={14}
-              color={theme.colors.emerald[500]}
-            />
-            <Text style={styles.postMetaText}>
-              {post.category
-                ? post.category.charAt(0).toUpperCase() +
-                  post.category.slice(1).toLowerCase()
-                : "General"}
-            </Text>
-          </View>
-
-          <View style={styles.postMetaRow}>
-            <Feather
-              name="map-pin"
-              size={12}
-              color={theme.colors.text.quaternary}
-            />
-            <Text numberOfLines={1} style={[styles.postMetaText, styles.flex]}>
-              {(post as any).location || "Unknown"}
-            </Text>
-            <Text style={styles.postDate}>{formattedDate}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderPosts = () => <PostFeed role="citizen" />;
 
   // ── Redesigned Map View ─────────────────────────────────────────
   const renderMap = () => (

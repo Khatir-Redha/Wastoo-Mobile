@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { isAxiosError } from 'axios';
 import api from '../../lib/api';
 
 export default function NotificationBell() {
@@ -9,12 +10,29 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchUnreadCount = async () => {
+    const startedAt = Date.now();
+    console.info('[Notifications] API_REQUEST_STARTED', {
+      endpoint: '/notification/unread-count',
+    });
     try {
       const response = await api.get('/notification/unread-count');
-      // The endpoint returns a raw number
+      console.info('[Notifications] API_REQUEST_SUCCESS', {
+        endpoint: '/notification/unread-count',
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        authorizationHeaderPresent: Boolean(
+          response.config.headers.get('Authorization'),
+        ),
+      });
       setUnreadCount(Number(response.data) || 0);
-    } catch (err) {
-      console.error('Failed to fetch unread notifications count', err);
+    } catch (error) {
+      console.error('[Notifications] API_REQUEST_FAILED', {
+        endpoint: '/notification/unread-count',
+        status: isAxiosError(error) ? error.response?.status : undefined,
+        durationMs: Date.now() - startedAt,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
     }
   };
 
@@ -25,7 +43,11 @@ export default function NotificationBell() {
   );
 
   const handlePress = () => {
-    router.push('/notifications' as any);
+    const targetRoute = '/notifications';
+    console.info('[Notifications] NOTIFICATION_BUTTON_PRESSED');
+    console.info('[Notifications] NAVIGATION_STARTED');
+    console.info('[Notifications] TARGET_ROUTE', targetRoute);
+    router.push(targetRoute as any);
   };
 
   const displayCount = unreadCount > 9 ? '9+' : unreadCount.toString();
