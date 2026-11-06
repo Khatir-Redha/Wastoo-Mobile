@@ -5,7 +5,8 @@ export enum PickupStatus {
   ASSIGNED = 'ASSIGNED',
   IN_TRANSIT = 'IN_TRANSIT',
   COMPLETED = 'COMPLETED',
-  CANCELED = 'CANCELED'
+  CANCELED = 'CANCELED',
+  REQUESTED = 'REQUESTED'
 }
 
 export interface CreatePickupDto {
@@ -42,6 +43,20 @@ export interface Pickup {
   deleted_at?: string | null;
   createdAt: string;
   updatedAt: string;
+  post?: {
+    id: number;
+    title: string;
+    description?: string;
+    category?: string;
+    quantity?: number;
+    address?: string;
+    images: Array<{ url: string }>;
+  };
+  request?: {
+    id: number;
+    requested_quantity: number;
+    status: string;
+  };
 }
 
 class PickupService {

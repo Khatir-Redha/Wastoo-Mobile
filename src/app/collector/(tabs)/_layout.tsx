@@ -7,6 +7,7 @@ import { theme } from '../../../theme/tokens';
 export default function CollectorTabsLayout() {
   return (
     <Tabs
+      initialRouteName="map"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -29,37 +30,32 @@ export default function CollectorTabsLayout() {
         },
       }}
     >
+      {/* Map is now the default (first) tab */}
       <Tabs.Screen
         name="map"
         options={{
           title: 'Map',
-        tabBarIcon: ({ color }) => (
-          <MaterialCommunityIcons name="map-marker-outline" size={24} color={color} />
-        ),
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="map-marker-outline" size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="requests"
         options={{
-          title: 'Posts',
+          title: 'Requests',
           tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons name="format-list-bulleted" size={24} color={color} />
+            <MaterialCommunityIcons name="clipboard-outline" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="my-pickups"
         options={{
-          title: 'Collections',
+          title: 'Pickups',
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="package-variant-closed" size={24} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="available-pickups"
-        options={{
-          href: null,
         }}
       />
       <Tabs.Screen
@@ -69,6 +65,12 @@ export default function CollectorTabsLayout() {
           tabBarIcon: ({ color }) => (
             <Feather name="user" size={22} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

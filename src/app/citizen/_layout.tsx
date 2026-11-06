@@ -26,6 +26,14 @@ export default function CitizenRootLayout() {
         }}
       />
 
+      {/* Incoming requests screen (full screen, no tabs) */}
+      <Stack.Screen
+        name="incoming-requests"
+        options={{
+          animation: 'slide_from_bottom',
+        }}
+      />
+
       {/* Badges / gamification */}
       <Stack.Screen
         name="gamification"

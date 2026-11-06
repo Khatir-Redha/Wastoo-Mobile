@@ -37,7 +37,10 @@ export default function AvailablePickupsScreen() {
   };
 
   // Only show pending pickups for collectors to accept
-  const pendingPickups = pickups.filter(p => p.status === 'PENDING' || p.status === 'OPEN'); // Prisma might use OPEN as default or PENDING. Our code uses PENDING.
+  const pendingPickups = pickups.filter((pickup) => {
+    const status: string = pickup.status;
+    return status === 'PENDING' || status === 'OPEN';
+  });
 
   // Mock distance for display purposes since we don't have geo yet
   const mockDistance = (id: number) => `${(id % 5) + 1.2} km`;

@@ -117,5 +117,12 @@ export const getAuthRoute = (
   if (authState === "UNAUTHENTICATED") return "/auth";
   if (authState === "AUTHENTICATED_INCOMPLETE") return "/onboarding";
   if (authState !== "AUTHENTICATED_COMPLETE" || !role) return null;
-  return `/${role.toLowerCase().replace(/\s+/g, "-")}`;
+
+  // Special handling for collector role to land on map screen
+  const normalizedRole = role.toLowerCase().replace(/\s+/g, "-");
+  if (normalizedRole === "collector") {
+    return "/collector/map";
+  }
+
+  return `/${normalizedRole}`;
 };

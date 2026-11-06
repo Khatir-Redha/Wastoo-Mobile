@@ -31,16 +31,16 @@ function NavigationGuard() {
     segments[0] === "notifications" || segments[0] === "pickups";
 
   const expectedRoute = getAuthRoute(authState, user?.role);
+  const expectedRoleRoute = expectedRoute?.split("/").filter(Boolean)[0];
 
   const isAtExpectedRoute =
     authState === "UNAUTHENTICATED"
       ? inAuthGroup
       : authState === "AUTHENTICATED_INCOMPLETE"
         ? inOnboarding
-        : authState === "AUTHENTICATED_COMPLETE" && expectedRoute
-        ? segments[0] === expectedRoute.slice(1) ||
-          inSharedAuthenticatedRoute
-        : false;
+        : authState === "AUTHENTICATED_COMPLETE" && expectedRoleRoute
+          ? segments[0] === expectedRoleRoute || inSharedAuthenticatedRoute
+          : false;
 
   useEffect(() => {
     if (

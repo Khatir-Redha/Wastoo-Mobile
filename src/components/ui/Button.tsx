@@ -228,7 +228,10 @@ export default function Button({
         ]}
       >
         <LinearGradient
-          colors={variantStyles.gradientColors}
+          colors={
+            variantStyles.gradientColors ??
+            theme.gradients.emeraldPrimary.colors
+          }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[baseButtonStyle, styles.gradient]}

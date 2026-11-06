@@ -9,10 +9,12 @@ import PostService, { Post } from '../../../services/post.service';
 import CancelPickupModal from '../../components/CancelPickupModal';
 import { Button, Card, StatusStepper } from '../../components/ui';
 import { theme } from '../../theme/tokens';
+import { useAuth } from '../../../context/AuthProvider';
 
 export default function PickupDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const { updateStatus, deletePickup, loading } = usePickups();
 
   const [pickup, setPickup] = useState<Pickup | null>(null);
@@ -21,7 +23,7 @@ export default function PickupDetailsScreen() {
 
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
 
-  const currentUserRole = 'CITIZEN';
+  const currentUserRole = user?.role;
 
   useEffect(() => {
     const fetchData = async () => {

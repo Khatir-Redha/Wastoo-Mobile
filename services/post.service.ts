@@ -49,8 +49,19 @@ export interface Post {
   weight?: number | null;
   address?: string | null;
   location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  reserved_quantity?: number | null;
+  collected_quantity?: number | null;
   author?: PostAuthor;
   User?: PostAuthor;
+  requests?: Array<{
+    id: number;
+    status: string;
+    requested_quantity: number;
+    collector?: { id: number; name: string };
+  }>;
+  available_quantity?: number;
 }
 
 export interface PaginatedPosts {

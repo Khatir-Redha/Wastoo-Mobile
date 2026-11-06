@@ -10,7 +10,7 @@ import Animated, {
 import { theme } from '../../theme/tokens';
 
 interface SkeletonProps {
-  width?: number | string;
+  width?: ViewStyle['width'];
   height?: number;
   borderRadius?: number;
   style?: ViewStyle;
@@ -153,6 +153,8 @@ export function ListSkeleton({ count = 5 }: { count?: number }) {
     </View>
   );
 }
+
+export default Skeleton;
 
 const styles = StyleSheet.create({
   skeleton: {

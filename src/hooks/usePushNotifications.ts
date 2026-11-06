@@ -9,7 +9,8 @@ import * as SecureStore from 'expo-secure-store';
 // Set global notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -19,8 +20,8 @@ export function usePushNotifications() {
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const router = useRouter();
   
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   const registerForPushNotificationsAsync = async () => {
     let token;

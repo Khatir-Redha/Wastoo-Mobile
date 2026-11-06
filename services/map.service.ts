@@ -34,6 +34,8 @@ export interface MapPostsResponse {
   title: string;
   status?: PostStatus;
   image?: string | null;
+  quantity?: number;
+  available_quantity?: number;
 }
 
 export interface MapCenterResponse {
@@ -58,6 +60,8 @@ export interface MapPickupResponse {
     longitude: number | null;
     title: string | null;
     image?: string | null;
+    available_quantity?: number;
+    quantity?: number;
   };
 }
 

@@ -1,165 +1,509 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, FlatList, TouchableOpacity, ActivityIndicator,
-  ScrollView, RefreshControl, SafeAreaView, Platform
-} from 'react-native';
-import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import PickupService, { Pickup } from '../../../../services/pickup.service';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  RefreshControl,
+  Alert,
+} from 'react-native';
+import { useAuth } from '../../../../context/AuthProvider';
+import { theme } from '../../../theme/tokens';
+import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
+import NotificationBell from '../../../components/NotificationBell';
 
-const STATUS_FILTERS = ['ALL', 'ASSIGNED', 'IN_TRANSIT', 'COMPLETED', 'CANCELED'];
-
-const getStatusStyle = (status: string) => {
-  switch (status) {
-    case 'ASSIGNED':   return { bg: '#EFF6FF', text: '#3B82F6' };
-    case 'IN_TRANSIT': return { bg: '#F5F3FF', text: '#8B5CF6' };
-    case 'COMPLETED':  return { bg: '#E8F8EE', text: '#1E5631' };
-    case 'CANCELED':   return { bg: '#FEF2F2', text: '#EF4444' };
-    default:           return { bg: '#F4F4F4', text: '#6D7A6E' };
-  }
+const STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string }> = {
+  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
+  REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline' },
+  ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline' },
+  IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline' },
+  COMPLETED: { bg: '#E8F8EE', text: '#1E5631', icon: 'check-circle-outline' },
+  CANCELED: { bg: '#FEF2F2', text: '#EF4444', icon: 'cancel-outline' },
 };
 
 const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-export default function MyPickupsScreen() {
+export default function CollectorMyPickupsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const firstName = user?.name?.split(' ')[0] || 'Collector';
+
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState('ALL');
 
-  const fetchMyPickups = useCallback(async () => {
+  const loadPickups = async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setError(null);
-      const data = await PickupService.getMyPickups();
-      // Collector's own accepted pickups — NOT unassigned or other's
-      setPickups(data || []);
+
+      const allPickups = await PickupService.getAllPickups();
+      // Filter for current user's pickups as collector
+      const myPickups = allPickups.filter(p => p.collector_id === user?._id);
+
+      // Sort by most recent first
+      myPickups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setPickups(myPickups);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || 'Failed to load pickups');
+      console.error('Failed to load pickups:', err);
+      setError(err?.response?.data?.message || 'Failed to load collections');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
+    loadPickups();
   }, []);
 
-  useEffect(() => { fetchMyPickups(); }, [fetchMyPickups]);
+  const handleRefresh = () => loadPickups(true);
 
-  const onRefresh = () => { setRefreshing(true); fetchMyPickups(); };
+  const handleStartTransit = async (id: number) => {
+    try {
+      await PickupService.updateStatus(id);
+      setPickups(prev => prev.map(p => p.id === id ? { ...p, status: PickupStatus.IN_TRANSIT } : p));
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to start transit');
+    }
+  };
 
-  const filtered = pickups.filter(p => activeFilter === 'ALL' || p.status === activeFilter);
+  const handleCompletePickup = (id: number) => {
+    router.push(`/collector/pickup/confirm?id=${id}`);
+  };
 
-  const counts: Record<string, number> = {};
-  STATUS_FILTERS.forEach(f => {
-    counts[f] = f === 'ALL' ? pickups.length : pickups.filter(p => p.status === f).length;
-  });
+  const renderPickup = ({ item }: { item: Pickup }) => {
+    const statusStyle = STATUS_STYLES[item.status as PickupStatus] || STATUS_STYLES.PENDING;
+    const postTitle = item.post?.title || `Post #${item.post_id}`;
 
-  return (
-    <SafeAreaView className="flex-1 bg-[#F7F8F6]" style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
-      {/* Header */}
-      <View className="px-5 pt-4 pb-0 bg-white border-b border-[#ECECEC]">
-        <Text className="text-[24px] font-bold text-[#1b1c1c] mb-4">My Pickups</Text>
+    const onPress = () => router.push(`/collector/pickup/${item.id}`);
 
-        {/* Status filters */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pb-3">
-          {STATUS_FILTERS.map(filter => (
-            <TouchableOpacity
-              key={filter}
-              onPress={() => setActiveFilter(filter)}
-              className={`mr-2 px-4 py-2 rounded-full border ${activeFilter === filter ? 'bg-[#1E5631] border-[#1E5631]' : 'bg-white border-[#ECECEC]'}`}
+    return (
+      <Pressable onPress={onPress} style={styles.pickupCard} accessibilityRole="button">
+        <View style={styles.cardHeader}>
+          <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
+            <MaterialCommunityIcons name={statusStyle.icon} size={16} color={statusStyle.text} />
+            <Text style={{ color: statusStyle.text, ...styles.statusText }}>
+              {formatStatus(item.status)}
+            </Text>
+          </View>
+          <Text style={styles.dateText}>
+            {item.scheduled_date
+              ? new Date(item.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              : 'ASAP'}
+          </Text>
+        </View>
+
+        <View style={styles.cardContent}>
+          <View style={styles.imageWrapper}>
+            <View style={styles.imagePlaceholder}>
+              <MaterialCommunityIcons name="recycle" size={24} color={statusStyle.text} />
+            </View>
+          </View>
+
+          <View style={styles.infoWrapper}>
+            <Text style={styles.postTitle} numberOfLines={2}>{postTitle}</Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <MaterialCommunityIcons name="calendar" size={14} color={theme.colors.text.tertiary} />
+                <Text style={styles.metaText}>
+                  {item.scheduled_date
+                    ? new Date(item.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+                    : 'ASAP'}
+                </Text>
+              </View>
+              {item.start_time && (
+                <View style={styles.metaItem}>
+                  <MaterialCommunityIcons name="clock" size={14} color={theme.colors.text.tertiary} />
+                  <Text style={styles.metaText}>{item.start_time} - {item.end_time}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {(item.status === PickupStatus.ASSIGNED || item.status === PickupStatus.IN_TRANSIT) && (
+          <View style={styles.actionBar}>
+            {item.status === PickupStatus.ASSIGNED && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleStartTransit(item.id);
+                }}
+                style={styles.primaryButton}
+                accessibilityLabel="Start transit"
+              >
+                <MaterialCommunityIcons name="truck-fast-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.primaryButtonText}>Start Pickup</Text>
+              </Pressable>
+            )}
+            {item.status === PickupStatus.IN_TRANSIT && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleCompletePickup(item.id);
+                }}
+                style={styles.successButton}
+                accessibilityLabel="Complete pickup"
+              >
+                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                <Text style={styles.successButtonText}>Complete</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {item.status === PickupStatus.COMPLETED && (
+          <View style={styles.actionBar}>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                // View receipt
+              }}
+              style={styles.secondaryButton}
+              accessibilityLabel="View receipt"
             >
-              <Text className={`text-[13px] font-semibold ${activeFilter === filter ? 'text-white' : 'text-[#6D7A6E]'}`}>
-                {filter === 'ALL' ? 'All' : formatStatus(filter)} ({counts[filter]})
-              </Text>
-            </TouchableOpacity>
+              <MaterialCommunityIcons name="file-document-outline" size={16} color={theme.colors.emerald[600]} />
+              <Text style={styles.secondaryButtonText}>View Receipt</Text>
+            </Pressable>
+          </View>
+        )}
+      </Pressable>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.header}>
+          <View style={styles.heading}>
+            <Text style={styles.title}>Hello, {firstName}!</Text>
+            <Text style={styles.subtitle}>Your active collections</Text>
+          </View>
+          <NotificationBell />
+        </View>
+        <ScrollView contentContainerStyle={styles.loadingList} showsVerticalScrollIndicator={false}>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={styles.skeletonCard}>
+              <View style={styles.skeletonHeader}>
+                <View style={styles.skeletonBadge} />
+                <View style={styles.skeletonDate} />
+              </View>
+              <View style={styles.skeletonContent}>
+                <View style={styles.skeletonLine} />
+                <View style={styles.skeletonShortLine} />
+              </View>
+            </View>
           ))}
         </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.header}>
+        <View style={styles.heading}>
+          <Text style={styles.title}>Hello, {firstName}!</Text>
+          <Text style={styles.subtitle}>Your active collections</Text>
+        </View>
+        <NotificationBell />
       </View>
 
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#2ECC71" />
+      {error && (
+        <View style={styles.errorBanner}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={18} color={theme.colors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable onPress={handleRefresh} style={styles.retryButton}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
         </View>
-      ) : error ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <Feather name="wifi-off" size={48} color="#ECECEC" />
-          <Text className="text-[#1b1c1c] font-bold text-[18px] mt-4">Something went wrong</Text>
-          <Text className="text-[#6D7A6E] text-[14px] mt-2 text-center">{error}</Text>
-          <TouchableOpacity onPress={fetchMyPickups} className="mt-6 bg-[#2ECC71] px-6 py-3 rounded-full">
-            <Text className="text-white font-bold">Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item.id.toString()}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2ECC71" />}
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center mt-24">
-              <MaterialCommunityIcons name="clipboard-list-outline" size={64} color="#ECECEC" />
-              <Text className="text-[#1b1c1c] font-bold text-[18px] mt-4">No Pickups Yet</Text>
-              <Text className="text-[#6D7A6E] text-[14px] mt-2 text-center px-8">
-                Accept pickups from the Available tab to see them here.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const style = getStatusStyle(item.status);
-            return (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => router.push(`/collector/pickup/${item.id}`)}
-                className="bg-white border border-[#ECECEC] rounded-[20px] p-5 mb-4"
-                style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}
-              >
-                {/* Top row */}
-                <View className="flex-row justify-between items-center mb-3">
-                  <View className="flex-row items-center">
-                    <View className="w-10 h-10 bg-[#E8F8EE] rounded-full items-center justify-center mr-3">
-                      <MaterialCommunityIcons name="truck-delivery-outline" size={20} color="#1E5631" />
-                    </View>
-                    <Text className="font-bold text-[16px] text-[#1b1c1c]">Pickup #{item.id}</Text>
-                  </View>
-                  <View style={{ backgroundColor: style.bg }} className="px-3 py-1 rounded-full">
-                    <Text style={{ color: style.text }} className="text-[11px] font-bold tracking-wide">
-                      {formatStatus(item.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row items-center mb-2">
-                  <Feather name="package" size={14} color="#8A8F87" />
-                  <Text className="text-[13px] text-[#6D7A6E] ml-2">Post #{item.post_id}</Text>
-                </View>
-
-                <View className="flex-row items-center mb-2">
-                  <Feather name="calendar" size={14} color="#8A8F87" />
-                  <Text className="text-[13px] text-[#6D7A6E] ml-2">
-                    {item.scheduled_date
-                      ? new Date(item.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                      : 'Not scheduled'}
-                  </Text>
-                </View>
-
-                {item.start_time && (
-                  <View className="flex-row items-center mb-2">
-                    <Feather name="clock" size={14} color="#8A8F87" />
-                    <Text className="text-[13px] text-[#6D7A6E] ml-2">
-                      {item.start_time} – {item.end_time}
-                    </Text>
-                  </View>
-                )}
-
-                <View className="flex-row items-center justify-end mt-2 pt-3 border-t border-[#F0F0F0]">
-                  <Text className="text-[#2ECC71] font-bold text-[13px] mr-1">View Details</Text>
-                  <Feather name="chevron-right" size={16} color="#2ECC71" />
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
       )}
+
+      <FlatList
+        data={pickups}
+        keyExtractor={item => item.id.toString()}
+        renderItem={renderPickup}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.emerald[500]}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons
+              name="package-variant-closed"
+              size={56}
+              color={theme.colors.text.tertiary}
+            />
+            <Text style={styles.emptyTitle}>No collections yet</Text>
+            <Text style={styles.emptyDescription}>
+              Accepted requests will appear here as active collections.
+            </Text>
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: theme.colors.canvas.secondary,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+  heading: {
+    flex: 1,
+  },
+  title: {
+    color: theme.colors.forest[500],
+    fontSize: 22,
+    fontFamily: theme.typography.fontFamily.bold,
+  },
+  subtitle: {
+    marginTop: 3,
+    color: theme.colors.text.secondary,
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.regular,
+  },
+  pickupCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.xl,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.light,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusText: {
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  dateText: {
+    color: theme.colors.text.tertiary,
+    fontSize: 11,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    padding: 14,
+    gap: 12,
+  },
+  imageWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.canvas.tertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  imagePlaceholder: {
+    position: 'absolute',
+  },
+  infoWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  postTitle: {
+    fontSize: 15,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    color: theme.colors.text.primary,
+    marginBottom: 6,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.secondary,
+  },
+  actionBar: {
+    padding: 14,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.light,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: theme.radius.md,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  successButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.emerald[700],
+    borderRadius: theme.radius.md,
+  },
+  successButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.emerald[500],
+    borderRadius: theme.radius.md,
+  },
+  secondaryButtonText: {
+    color: theme.colors.emerald[600],
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  errorBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF9EC',
+    borderWidth: 1,
+    borderColor: '#F2E3C4',
+    borderRadius: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: '#9B5B12',
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 48,
+  },
+  emptyTitle: {
+    marginTop: 16,
+    color: theme.colors.forest[500],
+    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  emptyDescription: {
+    marginTop: 6,
+    color: theme.colors.text.tertiary,
+    fontSize: 14,
+    textAlign: 'center',
+    fontFamily: theme.typography.fontFamily.regular,
+    lineHeight: 20,
+  },
+  loadingList: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  listContent: {
+    paddingBottom: 24,
+  },
+  skeletonCard: {
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.xl,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  skeletonBadge: {
+    width: 100,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: '#E5EEE9',
+  },
+  skeletonDate: {
+    width: 50,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: '#E5EEE9',
+  },
+  skeletonContent: {
+    padding: 14,
+    gap: 8,
+  },
+  skeletonLine: {
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: '#E5EEE9',
+    width: '70%',
+  },
+  skeletonShortLine: {
+    width: '40%',
+  },
+});
