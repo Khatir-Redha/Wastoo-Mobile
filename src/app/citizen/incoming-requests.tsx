@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { useAuth } from '../../../context/AuthProvider';
 import { theme } from '../../theme/tokens';
-import RequestService, { Request, RequestStatus, GetMyRequestsResponse } from '../../../services/request.service';
-import PostService, { Post } from '../../../services/post.service';
+import RequestService, { Request, RequestStatus } from '../../../services/request.service';
+import PostService from '../../../services/post.service';
 import NotificationBell from '../../components/NotificationBell';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
@@ -285,7 +285,7 @@ export default function CitizenIncomingRequestsScreen() {
             />
             <Text style={styles.emptyTitle}>No incoming requests</Text>
             <Text style={styles.emptyDescription}>
-              When collectors request your posts, they'll appear here.
+              When collectors request your posts, they&apos;ll appear here.
             </Text>
           </View>
         }
