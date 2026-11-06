@@ -136,7 +136,7 @@ export default function CitizenIncomingRequestsScreen() {
       <Pressable onPress={() => router.push(`/citizen/request/${item.id}`)} style={styles.requestCard} accessibilityRole="button">
         <View style={styles.cardHeader}>
           <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
-            <MaterialCommunityIcons name={statusStyle.icon} size={16} color={statusStyle.text} />
+            <MaterialCommunityIcons name={statusStyle.icon as any} size={16} color={statusStyle.text} />
             <Text style={{ color: statusStyle.text, ...styles.statusText }}>
               {formatStatus(item.status)}
             </Text>
