@@ -12,11 +12,11 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { useAuth } from '@/context/AuthProvider';
-import { theme } from '@/theme/tokens';
-import RequestService, { Request, RequestStatus, GetMyRequestsResponse } from '@/services/request.service';
-import PostService, { Post } from '@/services/post.service';
-import NotificationBell from '@/components/NotificationBell';
+import { useAuth } from '../../../context/AuthProvider';
+import { theme } from '../../theme/tokens';
+import RequestService, { Request, RequestStatus, GetMyRequestsResponse } from '../../../services/request.service';
+import PostService, { Post } from '../../../services/post.service';
+import NotificationBell from '../../components/NotificationBell';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
