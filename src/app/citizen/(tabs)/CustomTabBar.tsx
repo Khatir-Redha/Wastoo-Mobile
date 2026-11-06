@@ -1,58 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { View, Platform, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { theme } from "../../../theme/tokens";
-import { useAuth } from "../../../../context/AuthProvider";
-import RequestService, { RequestStatus } from "../../../../services/request.service";
-import PostService from "../../../../services/post.service";
+import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { theme } from "../../../theme/tokens";
+import { usePendingRequestsSummary } from "@/hooks/usePendingRequestsSummary";
+
+// Configuration keyed by route name
+const TAB_CONFIG: Record<string, { label: string; icon: string; iconLib: "Feather" | "MaterialCommunityIcons" }> = {
+  index: { label: "Home", icon: "home-variant-outline", iconLib: "MaterialCommunityIcons" },
+  "my-posts": { label: "My Posts", icon: "bar-chart-2", iconLib: "Feather" },
+  pickups: { label: "Pickups", icon: "package-variant-closed", iconLib: "MaterialCommunityIcons" },
+  profile: { label: "Profile", icon: "user", iconLib: "Feather" },
+};
 
 export default function CustomTabBar() {
   const router = useRouter();
-  const { user } = useAuth();
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const route = useRoute();
+  const insets = useSafeAreaInsets();
+  const { summary: pendingSummary } = usePendingRequestsSummary();
+  const pendingCount = pendingSummary.total;
 
-  const [pendingCount, setPendingCount] = useState(0);
+  // Get state from navigation
+  const state = navigation.getState();
 
-  const tabs = [
-    { name: "index", label: "Home", icon: "home-variant-outline", iconLib: "MaterialCommunityIcons" as const },
-    { name: "my-posts", label: "My Posts", icon: "bar-chart-2", iconLib: "Feather" as const },
-    { name: "create-action", label: "", icon: "", iconLib: "Feather" as const, isPlus: true },
-    { name: "pickups", label: "Pickups", icon: "package-variant-closed", iconLib: "MaterialCommunityIcons" as const },
-    { name: "profile", label: "Profile", icon: "user", iconLib: "Feather" as const },
-  ];
+  const focusedRoute = state?.routes[state?.index ?? 0]?.name as string;
 
-  useEffect(() => {
-    if (!user) return;
-    let mounted = true;
-    const load = async () => {
-      try {
-        const myPosts = await PostService.getMyPosts();
-        const postIds = myPosts.map((p) => p.id);
-        let total = 0;
-        for (const postId of postIds) {
-          const reqs = await RequestService.getRequestsForPost(postId);
-          total += reqs.filter((r) => r.status === RequestStatus.PENDING).length;
-        }
-        if (mounted) setPendingCount(total);
-      } catch (e) {
-        console.log("Failed to load pending count for tab badge:", e);
-      }
-    };
-    load();
-    const unsub = navigation.addListener("focus", load);
-    return () => {
-      mounted = false;
-      unsub();
-    };
-  }, [user, navigation]);
+  const openCreatePost = () => {
+    router.push("/citizen/create-post");
+  };
 
-  const focusedRoute = route.name;
-
+  // Render tab slots in order: Home, My Posts, [+], Pickups, Profile
   return (
     <View
       style={[
@@ -61,71 +40,110 @@ export default function CustomTabBar() {
       ]}
     >
       <View style={styles.tabBarInner}>
-        {tabs.map((tab) => {
-          const isFocused = focusedRoute === tab.name;
-          const color = isFocused ? theme.colors.emerald[500] : theme.colors.text.tertiary;
+        {/* Slot 1: Home */}
+        <View style={styles.tabSlot}>
+          <TabButton
+            routeName="index"
+            config={TAB_CONFIG["index"]}
+            isFocused={focusedRoute === "index"}
+            showBadge={false}
+          />
+        </View>
 
-          if (tab.isPlus) {
-            return (
-              <View
-                key={tab.name}
-                style={[
-                  styles.tabSlot,
-                  styles.plusSlot,
-                  { width: "20%" },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.plusButton,
-                    isFocused && styles.plusButtonFocused,
-                  ]}
-                  onPress={() => router.push("/citizen/create-post")}
-                  accessibilityLabel="Create new post"
-                  accessibilityRole="button"
-                >
-                  <Feather name="plus" size={28} color={theme.colors.text.inverse} />
-                </TouchableOpacity>
-              </View>
-            );
-          }
+        {/* Slot 2: My Posts */}
+        <View style={styles.tabSlot}>
+          <TabButton
+            routeName="my-posts"
+            config={TAB_CONFIG["my-posts"]}
+            isFocused={focusedRoute === "my-posts"}
+            showBadge={pendingCount > 0}
+            badgeCount={pendingCount}
+          />
+        </View>
 
-          const IconComponent = tab.iconLib === "Feather" ? Feather : MaterialCommunityIcons;
-          const showBadge = tab.name === "my-posts" && pendingCount > 0;
+        {/* Slot 3: Plus button (center) */}
+        <View style={styles.plusSlot}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Create new post"
+            onPress={openCreatePost}
+            style={styles.plusButton}
+          >
+            <Feather name="plus" size={28} color={theme.colors.text.inverse} />
+          </TouchableOpacity>
+        </View>
 
-          return (
-            <View key={tab.name} style={[styles.tabSlot, { width: "20%" }]}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={tab.label}
-                accessibilityState={{ selected: isFocused }}
-                onPress={() => (navigation as any).navigate(tab.name)}
-                style={styles.tabButton}
-              >
-                <View style={styles.iconWrapper}>
-                  <IconComponent name={tab.icon as any} size={24} color={color} />
-                  {showBadge && (
-                    <View style={[styles.badge, pendingCount > 9 && styles.badgeLarge]}>
-                      <Text style={styles.badgeText}>
-                        {pendingCount > 9 ? "9+" : pendingCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    isFocused && styles.tabLabelActive,
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
+        {/* Slot 4: Pickups */}
+        <View style={styles.tabSlot}>
+          <TabButton
+            routeName="pickups"
+            config={TAB_CONFIG["pickups"]}
+            isFocused={focusedRoute === "pickups"}
+            showBadge={false}
+          />
+        </View>
+
+        {/* Slot 5: Profile */}
+        <View style={styles.tabSlot}>
+          <TabButton
+            routeName="profile"
+            config={TAB_CONFIG["profile"]}
+            isFocused={focusedRoute === "profile"}
+            showBadge={false}
+          />
+        </View>
       </View>
     </View>
+  );
+}
+
+interface TabButtonProps {
+  routeName: string;
+  config: { label: string; icon: string; iconLib: "Feather" | "MaterialCommunityIcons" };
+  isFocused: boolean;
+  showBadge: boolean;
+  badgeCount?: number;
+}
+
+function TabButton({ routeName, config, isFocused, showBadge, badgeCount }: TabButtonProps) {
+  const router = useRouter();
+
+  const color = isFocused ? theme.colors.emerald[500] : theme.colors.text.tertiary;
+  const IconComponent = config.iconLib === "Feather" ? Feather : MaterialCommunityIcons;
+
+  const handlePress = () => {
+    const path = routeName === "index" ? "/citizen" : `/citizen/${routeName}`;
+    router.push(path as any);
+  };
+
+  const badgeStyle = showBadge
+    ? [styles.badge, badgeCount && badgeCount > 9 ? styles.badgeLarge : {}]
+    : [];
+
+  const labelStyle = isFocused ? [styles.tabLabel, styles.tabLabelActive] : [styles.tabLabel];
+
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={config.label}
+      accessibilityState={{ selected: isFocused }}
+      onPress={handlePress}
+      style={styles.tabButton}
+    >
+      <View style={styles.iconWrapper}>
+        <IconComponent name={config.icon as any} size={24} color={color} />
+        {showBadge && (
+          <View style={badgeStyle}>
+            <Text style={styles.badgeText}>
+              {badgeCount && badgeCount > 9 ? "9+" : badgeCount ?? 0}
+            </Text>
+          </View>
+        )}
+      </View>
+      <Text style={labelStyle}>
+        {config.label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -149,6 +167,7 @@ const styles = StyleSheet.create({
   tabSlot: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   plusSlot: {
     flex: 1,
@@ -209,8 +228,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...theme.shadows.md,
     marginBottom: Platform.OS === "ios" ? 6 : 2,
-  },
-  plusButtonFocused: {
-    backgroundColor: theme.colors.emerald[600],
   },
 });
