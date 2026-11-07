@@ -9,6 +9,7 @@ import RequestService, { Request, RequestStatus } from '../../../../services/req
 import PostService, { Post } from '../../../../services/post.service';
 import { Image } from 'expo-image';
 import { theme } from '../../../theme/tokens';
+import { getPostQuantities } from '../../../utils/post-quantities';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
@@ -126,6 +127,10 @@ export default function CitizenRequestDetailScreen() {
   const collectorName = request.collector?.name || 'Unknown Collector';
   const collectorPhone = request.collector?.phone || 'Not provided';
 
+  // Get quantities using the shared helper
+  const postQuantities = getPostQuantities(post || request.post || null);
+  const availableQty = postQuantities.available;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -173,11 +178,11 @@ export default function CitizenRequestDetailScreen() {
                   </Text>
                 </View>
               </View>
-              {post?.available_quantity !== undefined && (
+              {availableQty !== null && (
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="package-variant" size={14} color={theme.colors.emerald[600]} />
                   <Text style={{ ...styles.metaText, color: theme.colors.emerald[600] }}>
-                    {post.available_quantity} {unit} available
+                    {availableQty} {unit} available
                   </Text>
                 </View>
               )}

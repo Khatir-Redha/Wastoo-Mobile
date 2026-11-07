@@ -20,6 +20,7 @@ import PostService from '../../../../services/post.service';
 import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
 import NotificationBell from '../../../components/NotificationBell';
 import { usePendingRequestsSummary } from '@/hooks/usePendingRequestsSummary';
+import { getPostQuantities } from '../../../utils/post-quantities';
 
 type Segment = 'incoming' | 'pickups';
 
@@ -172,8 +173,11 @@ export default function CitizenRequestsScreen() {
     const postTitle = item.post?.title || `Post #${item.post_id}`;
     const postCategory = item.post?.category || 'Unknown';
     const requestedQty = item.requested_quantity;
-    const availableQty = item.post?.available_quantity ?? 0;
-    const totalQty = item.post?.quantity ?? 0;
+
+    // Use getPostQuantities to derive available quantity when not provided by API
+    const postQuantities = getPostQuantities(item.post || null);
+    const availableQty = postQuantities.available ?? 0;
+    const totalQty = postQuantities.total ?? 0;
     const unit = getQuantityUnit(postCategory || '');
     const imageUrl = item.post?.images?.[0]?.url?.trim()
       ? item.post.images[0].url.replace('http://', 'https://')
