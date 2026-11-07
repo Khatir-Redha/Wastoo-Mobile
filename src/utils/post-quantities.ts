@@ -41,7 +41,6 @@ export function getPostQuantities(post: PostData | null | undefined): PostQuanti
   }
 
   // Determine unit based on category or explicit unit field
-  const liquidCategories = ['ORGANIC', 'HAZARDOUS'];
   const categoryValue = post.category;
   const categoryStr = typeof categoryValue === 'string' ? categoryValue.toUpperCase() : '';
   const explicitUnit = post.unit;

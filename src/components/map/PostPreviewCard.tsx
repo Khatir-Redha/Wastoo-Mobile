@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
-import { MapPostResponse, WasteCategory, PostStatus } from "../../../services/map.service";
+import { MapPostResponse, PostStatus } from "../../../services/map.service";
 import { theme } from "../../theme/tokens";
 import { getCategoryColor, getCategoryIcon, getCategoryName } from "../../utils/category-utils";
 import { getPostQuantities } from "../../utils/post-quantities";

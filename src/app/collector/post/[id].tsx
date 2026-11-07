@@ -52,7 +52,7 @@ export default function CollectorPostDetailScreen() {
       try {
         const postData = await PostService.getPostById(Number(id));
         setPost(postData);
-
+        console.log('POST DETAIL RAW', JSON.stringify(postData, null, 2));
         // Check for existing PENDING request
         const requests = await RequestService.getRequestsForPost(Number(id));
         const pending = requests.find(r => r.status === RequestStatus.PENDING);
