@@ -72,12 +72,10 @@ export default function CollectorPostDetailScreen() {
   }, [id]);
 
   const quantities = getPostQuantities(post);
-  const availableQuantity = quantities.available ?? 0;
-  const totalQuantity = quantities.total ?? 0;
   const unit = quantities.unit;
-  const isFullyReserved = quantities.available === 0;
-  const minQuantity = Math.min(1, availableQuantity);
-  const maxQuantity = availableQuantity;
+  const isQuantityUnavailable = quantities.available === null;
+  const availableForRequest = quantities.available ?? 0;
+  const totalForDisplay = quantities.total ?? 0;
 
   const handleWithdraw = async () => {
     if (!pendingRequest) return;
@@ -109,15 +107,19 @@ export default function CollectorPostDetailScreen() {
   };
 
   const handleSubmitRequest = async () => {
-    if (!post || !quantity.trim()) return;
+    if (!post || !quantity.trim() || isQuantityUnavailable) return;
 
     const qty = Number(quantity);
     if (isNaN(qty) || qty <= 0) {
       Alert.alert('Invalid quantity', 'Please enter a valid quantity');
       return;
     }
-    if (qty > availableQuantity) {
-      Alert.alert('Not enough available', `Only ${availableQuantity} ${unit} available`);
+    if (isQuantityUnavailable) {
+      Alert.alert('Quantity unavailable', 'Unable to request - quantity information is not available.');
+      return;
+    }
+    if (qty > availableForRequest) {
+      Alert.alert('Not enough available', `Only ${availableForRequest} ${unit} available`);
       return;
     }
 
@@ -189,9 +191,19 @@ export default function CollectorPostDetailScreen() {
             </View>
             <View style={styles.metaItem}>
               <MaterialCommunityIcons name="package-variant" size={14} color={theme.colors.emerald[600]} />
-              <Text style={[styles.metaText, { color: theme.colors.emerald[600] }]}>
-                {availableQuantity} / {totalQuantity} {unit} available
-              </Text>
+              {isQuantityUnavailable ? (
+                <Text style={[styles.metaText, { color: theme.colors.text.tertiary }]}>
+                  Quantity unavailable
+                </Text>
+              ) : availableForRequest === 0 ? (
+                <Text style={[styles.metaText, { color: theme.colors.text.tertiary }]}>
+                  Fully reserved
+                </Text>
+              ) : (
+                <Text style={[styles.metaText, { color: theme.colors.emerald[600] }]}>
+                  {availableForRequest.toLocaleString()} / {totalForDisplay.toLocaleString()} {unit} available
+                </Text>
+              )}
             </View>
           </View>
 
@@ -211,11 +223,11 @@ export default function CollectorPostDetailScreen() {
                 color={theme.colors.gold[500]}
               />
               <Text style={styles.pendingText}>
-                Your request is {formatStatus(pendingRequest!.status)}
+                Your request is {formatStatus(pendingRequest.status)}
               </Text>
             </View>
 
-            {pendingRequest!.status === RequestStatus.PENDING && (
+            {pendingRequest.status === RequestStatus.PENDING && (
               <TouchableOpacity
                 onPress={handleWithdraw}
                 disabled={submitting}
@@ -229,7 +241,7 @@ export default function CollectorPostDetailScreen() {
               </TouchableOpacity>
             )}
           </View>
-        ) : quantities.available === null ? (
+        ) : isQuantityUnavailable ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Quantity Info</Text>
             <View style={styles.disabledSection}>
@@ -240,7 +252,7 @@ export default function CollectorPostDetailScreen() {
               </Text>
             </View>
           </View>
-        ) : isFullyReserved ? (
+        ) : availableForRequest === 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Availability</Text>
             <View style={styles.disabledSection}>
@@ -256,14 +268,14 @@ export default function CollectorPostDetailScreen() {
 
             {/* Quantity Breakdown */}
             <View style={styles.quantityBreakdown}>
-              <Text style={styles.breakdownLabel}>Total: {totalQuantity.toLocaleString()} {unit}</Text>
+              <Text style={styles.breakdownLabel}>Total: {totalForDisplay.toLocaleString()} {unit}</Text>
               {quantities.reserved !== null && (
                 <Text style={styles.breakdownLabel}>Reserved: {quantities.reserved.toLocaleString()} {unit}</Text>
               )}
               {quantities.collected !== null && (
                 <Text style={styles.breakdownLabel}>Collected: {quantities.collected.toLocaleString()} {unit}</Text>
               )}
-              <Text style={styles.breakdownLabel}>Available: {availableQuantity.toLocaleString()} {unit}</Text>
+              <Text style={styles.breakdownLabel}>Available: {availableForRequest.toLocaleString()} {unit}</Text>
             </View>
 
             <View style={styles.inputSection}>
