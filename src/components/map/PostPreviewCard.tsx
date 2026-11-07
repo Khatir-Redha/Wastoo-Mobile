@@ -11,6 +11,7 @@ import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { MapPostResponse, WasteCategory, PostStatus } from "../../../services/map.service";
 import { theme } from "../../theme/tokens";
 import { getCategoryColor, getCategoryIcon, getCategoryName } from "../../utils/category-utils";
+import { getPostQuantities } from "../../utils/post-quantities";
 
 interface PostPreviewCardProps {
   post: MapPostResponse;
@@ -32,15 +33,15 @@ const getStatusColor = (status: PostStatus) => {
 };
 
 const getAvailabilityText = (post: MapPostResponse) => {
-  const available = post.available_quantity ?? 0;
-  const total = post.quantity ?? 0;
+  const quantities = getPostQuantities(post);
+  const available = quantities.available ?? 0;
+  const total = quantities.total ?? 0;
 
   if (available <= 0) {
     return { text: "Fully Reserved", color: theme.colors.text.tertiary };
   }
 
-  const unit: WasteCategory extends 'ORGANIC' | 'HAZARDOUS' ? 'L' : 'kg' =
-    ['ORGANIC', 'HAZARDOUS'].includes(String(post.category)) ? ('L' as any) : ('kg' as any);
+  const unit = quantities.unit;
 
   return {
     text: `Available • ${available} / ${total} ${unit}`,

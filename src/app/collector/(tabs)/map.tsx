@@ -46,6 +46,7 @@ import {
 import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import { theme } from "../../../theme/tokens";
 import { getCategoryColor, getCategoryIcon, getCategoryName } from "../../../utils/category-utils";
+import { getPostQuantities } from "../../../utils/post-quantities";
 import NotificationBell from "../../../components/NotificationBell";
 import { LoadingScreen } from "../../../components/ui/LoadingScreen";
 
@@ -306,9 +307,11 @@ export default function CollectorMapScreen() {
 
   // Calculate availability status
   const getAvailabilityChip = (post: MapPostResponse) => {
-    const available = post.available_quantity ?? 0;
+    const quantities = getPostQuantities(post);
+    const available = quantities.available ?? 0;
+    const totalQty = quantities.total ?? 1;
     if (available <= 0) return { text: "Fully Reserved", color: theme.colors.text.tertiary };
-    const percentage = (available / (post.quantity ?? 1)) * 100;
+    const percentage = (available / (totalQty)) * 100;
     if (percentage < 20) return { text: "Limited", color: theme.colors.mint[500] };
     return { text: "Available", color: theme.colors.emerald[600] };
   };
