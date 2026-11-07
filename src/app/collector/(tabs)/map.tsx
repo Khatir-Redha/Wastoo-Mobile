@@ -16,23 +16,22 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
-  Linking,
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { calculateDistance } from "haversine-toolkit";
 import MapService, {
+  MapPostResponse,
   MapCenterResponse,
-  MapPickupResponse,
   WasteCategory,
+  PostStatus,
 } from "../../../../services/map.service";
 import RoutingService, {
   RouteResult,
 } from "../../../../services/routing.service";
-import MapFilterBar from "../../../components/map/MapFilterBar";
 import MapRadiusSlider from "../../../components/map/MapRadiusSlider";
-import PickupPreviewCard from "../../../components/map/PickupPreviewCard";
+import PostPreviewCard from "../../../components/map/PostPreviewCard";
 import CenterPreviewCard from "../../../components/map/CenterPreviewCard";
 import CircularPin from "../../../components/map/CircularPin";
 import RouteOverlay from "../../../components/map/RouteOverlay";
@@ -47,6 +46,7 @@ import {
 import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import { theme } from "../../../theme/tokens";
 import NotificationBell from "../../../components/NotificationBell";
+import { LoadingScreen } from "../../../components/ui/LoadingScreen";
 
 interface ActiveRoute {
   route: RouteResult;
@@ -54,22 +54,9 @@ interface ActiveRoute {
   destinationCoordinate: { latitude: number; longitude: number };
 }
 
-const pickupRingColor = (status: string): string => {
-  switch (status) {
-    case "PENDING":
-      return "#3B82F6";
-    case "ASSIGNED":
-      return "#F59E0B";
-    case "IN_TRANSIT":
-      return "#8B5CF6";
-    default:
-      return "#9CA3AF";
-  }
-};
-
-function getRouteBounds(
+const getRouteBounds = (
   coordinates: [number, number][]
-): [number, number, number, number] {
+): [number, number, number, number] => {
   let minLng = Infinity;
   let minLat = Infinity;
   let maxLng = -Infinity;
@@ -84,7 +71,7 @@ function getRouteBounds(
 
   if (!isFinite(minLng)) return [0, 0, 0, 0];
   return [minLng, minLat, maxLng, maxLat];
-}
+};
 
 export default function CollectorMapScreen() {
   const insets = useSafeAreaInsets();
@@ -95,7 +82,7 @@ export default function CollectorMapScreen() {
   const { location, issue: locationIssue, isLoading: isLocating, requestLocation } =
     useDeviceLocation();
   const { style: mapStyle, error: mapStyleError } = useMapTilerStyle();
-  const [mapPickups, setMapPickups] = useState<MapPickupResponse[]>([]);
+  const [mapPosts, setMapPosts] = useState<MapPostResponse[]>([]);
   const [mapCenters, setMapCenters] = useState<MapCenterResponse[]>([]);
   const [radius, setRadius] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -103,7 +90,7 @@ export default function CollectorMapScreen() {
   const [searchText, setSearchText] = useState("");
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [draftCategory, setDraftCategory] = useState<WasteCategory | "ALL">("ALL");
-  const [selectedPickup, setSelectedPickup] = useState<MapPickupResponse | null>(null);
+  const [selectedPost, setSelectedPost] = useState<MapPostResponse | null>(null);
   const [selectedCenter, setSelectedCenter] = useState<MapCenterResponse | null>(null);
 
   // Routing state
@@ -111,7 +98,7 @@ export default function CollectorMapScreen() {
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapLoadError, setMapLoadError] = useState(false);
-  const hasSelectedPlace = Boolean(selectedPickup || selectedCenter) && !activeRoute;
+  const hasSelectedPlace = Boolean(selectedPost || selectedCenter) && !activeRoute;
 
   const categories: (WasteCategory | "ALL")[] = [
     "ALL",
@@ -122,16 +109,14 @@ export default function CollectorMapScreen() {
   ];
 
   const normalizedSearch = searchText.trim().toLocaleLowerCase();
-  const visiblePickups = useMemo(
+  const visiblePosts = useMemo(
     () =>
       normalizedSearch
-        ? mapPickups.filter((pickup) =>
-            `${pickup.post?.title ?? ""} ${pickup.post?.id ?? pickup.id}`
-              .toLocaleLowerCase()
-              .includes(normalizedSearch)
+        ? mapPosts.filter((post) =>
+            `${post.title ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)
           )
-        : mapPickups,
-    [mapPickups, normalizedSearch]
+        : mapPosts,
+    [mapPosts, normalizedSearch]
   );
   const visibleCenters = useMemo(
     () =>
@@ -173,7 +158,7 @@ export default function CollectorMapScreen() {
 
   useEffect(() => {
     if (!location) {
-      setMapPickups([]);
+      setMapPosts([]);
       setMapCenters([]);
       setLoading(false);
       return;
@@ -188,8 +173,8 @@ export default function CollectorMapScreen() {
       };
 
       try {
-        const [pickups, centers] = await Promise.all([
-          MapService.getMapPickups({
+        const [posts, centers] = await Promise.all([
+          MapService.getMapPosts({
             latitude: coords.latitude,
             longitude: coords.longitude,
             radius,
@@ -202,14 +187,20 @@ export default function CollectorMapScreen() {
             ...(category !== "ALL" && { category }),
           }),
         ]);
+
+        // Filter posts: only OPEN status with available quantity > 0
+        const availablePosts = (posts || []).filter(
+          p => p.status === PostStatus.OPEN && (p.available_quantity ?? 0) > 0
+        );
+
         if (isMounted) {
-          setMapPickups(pickups || []);
+          setMapPosts(availablePosts);
           setMapCenters(centers || []);
         }
       } catch (err) {
         console.log("collector map fetch failed:", err);
         if (isMounted) {
-          setMapPickups([]);
+          setMapPosts([]);
           setMapCenters([]);
         }
       } finally {
@@ -259,7 +250,7 @@ export default function CollectorMapScreen() {
         destinationCoordinate: destination,
       });
 
-      setSelectedPickup(null);
+      setSelectedPost(null);
       setSelectedCenter(null);
 
       const bounds = getRouteBounds(result.data.geometry);
@@ -304,6 +295,7 @@ export default function CollectorMapScreen() {
 
   const openAppSettings = async () => {
     try {
+      const { Linking } = await import('react-native');
       await Linking.openSettings();
     } catch (error) {
       console.warn("Could not open Wastoo app settings.", error);
@@ -311,222 +303,65 @@ export default function CollectorMapScreen() {
     }
   };
 
+  // Calculate availability status
+  const getAvailabilityChip = (post: MapPostResponse) => {
+    const available = post.available_quantity ?? 0;
+    if (available <= 0) return { text: "Fully Reserved", color: theme.colors.text.tertiary };
+    const percentage = (available / (post.quantity ?? 1)) * 100;
+    if (percentage < 20) return { text: "Limited", color: theme.colors.mint[500] };
+    return { text: "Available", color: theme.colors.emerald[600] };
+  };
+
+  const getCategoryColor = (category: WasteCategory) => {
+    switch (category) {
+      case WasteCategory.PLASTIC: return theme.colors.category.plastic;
+      case WasteCategory.GLASS: return theme.colors.category.glass;
+      case WasteCategory.PAPER: return theme.colors.category.paper;
+      case WasteCategory.METAL: return theme.colors.category.metal;
+      case WasteCategory.ORGANIC: return theme.colors.category.organic;
+      case WasteCategory.TEXTILE: return theme.colors.category.general;
+      case WasteCategory.HAZARDOUS: return theme.colors.error[500];
+      case WasteCategory.MIXED: return theme.colors.category.general;
+      default: return theme.colors.emerald[500];
+    }
+  };
+
+  const getCategoryIcon = (category: WasteCategory) => {
+    switch (category) {
+      case WasteCategory.PLASTIC: return "recycle";
+      case WasteCategory.GLASS: return "bottle-wine";
+      case WasteCategory.PAPER: return "newspaper-variant";
+      case WasteCategory.METAL: return "cube";
+      case WasteCategory.ORGANIC: return "leaf";
+      case WasteCategory.TEXTILE: return "tshirt-crew";
+      case WasteCategory.HAZARDOUS: return "alert-octagon";
+      case WasteCategory.MIXED: return "package-variant-closed";
+      default: return "recycle";
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {mapStyle ? (
-        <Map
-          style={styles.map}
-          mapStyle={mapStyle}
-          attribution
-          logo={false}
-          compass
-          compassPosition={{ top: insets.top + 158, right: 16 }}
-          onDidFinishLoadingMap={() => setMapReady(true)}
-          onDidFailLoadingMap={() => {
-            console.warn("MapTiler map style failed to load.");
-            setMapLoadError(true);
-          }}
-          onPress={() => {
-            if (!markerPressedRef.current) {
-              setSelectedPickup(null);
-              setSelectedCenter(null);
-            }
-            markerPressedRef.current = false;
-          }}
-        >
-          <Camera
-            ref={cameraRef}
-            initialViewState={{
-              center: [
-                ALGERIA_OVERVIEW.center.longitude,
-                ALGERIA_OVERVIEW.center.latitude,
-              ],
-              zoom: ALGERIA_OVERVIEW.zoom,
-            }}
-            maxZoom={19}
-          />
-
-          {location && <UserLocation animated accuracy heading />}
-
-          {activeRoute && location && (
-            <RouteOverlay
-              route={activeRoute.route}
-              originCoordinate={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              }}
-              destinationCoordinate={activeRoute.destinationCoordinate}
-            />
-          )}
-
-          {visiblePickups.map((pickup) =>
-            pickup.post?.latitude != null && pickup.post?.longitude != null ? (
-              <CircularPin
-                key={`pickup-${pickup.id}`}
-                coordinate={{
-                  latitude: pickup.post.latitude,
-                  longitude: pickup.post.longitude,
-                }}
-                image={pickup.post.image}
-                ringColor={pickupRingColor(pickup.status)}
-                isSelected={selectedPickup?.id === pickup.id}
-                onPress={() => {
-                  markerPressedRef.current = true;
-                  setSelectedPickup(pickup);
-                  setSelectedCenter(null);
-                  cameraRef.current?.easeTo({
-                    center: [pickup.post!.longitude!, pickup.post!.latitude!],
-                    duration: 400,
-                  });
-                }}
-              />
-            ) : null
-          )}
-
-          {visibleCenters.map((center) => (
-            <CircularPin
-              key={`center-${center.id}`}
-              coordinate={{
-                latitude: center.latitude,
-                longitude: center.longitude,
-              }}
-              ringColor="#087F5B"
-              iconName="recycle"
-              isSelected={selectedCenter?.id === center.id}
-              onPress={() => {
-                markerPressedRef.current = true;
-                setSelectedCenter(center);
-                setSelectedPickup(null);
-                cameraRef.current?.easeTo({
-                  center: [center.longitude, center.latitude],
-                  duration: 400,
-                });
-              }}
-            />
-          ))}
-        </Map>
-      ) : (
-        <View style={[styles.map, styles.mapUnavailable]}>
-          <Text style={styles.mapUnavailableText}>
-            {mapStyleError ?? "Loading MapTiler map style…"}
-          </Text>
-        </View>
-      )}
-
-      <View
-        pointerEvents="box-none"
-        style={[styles.topOverlay, { top: insets.top + 6 }]}
-      >
-        <View style={styles.headingRow}>
-          <View style={styles.headingCopy}>
-            <Text style={styles.headingTitle}>Explore nearby</Text>
-            <Text style={styles.headingSubtitle} numberOfLines={1}>
-              {isLocating
-                ? "Finding your location…"
-                : locationIssue
-                  ? "Location needs attention"
-                : location
-                  ? `${visiblePickups.length + visibleCenters.length} places around you`
-                  : "Discover pickups and recycling centers"}
-            </Text>
-          </View>
-          <View style={styles.headerAction}>
-            <NotificationBell />
-          </View>
-        </View>
-
-        <View style={styles.searchBar}>
-          <MaterialCommunityIcons
-            name="magnify"
-            size={21}
-            color={theme.colors.text.tertiary}
-          />
-          <TextInput
-            accessibilityLabel="Search pickups and recycling centers"
-            placeholder="Search pickups or centers"
-            placeholderTextColor="#84928A"
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="search"
-            style={styles.searchInput}
-          />
-          {searchText.length > 0 && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setSearchText("")}
-              hitSlop={8}
-              style={styles.clearSearchButton}
-            >
-              <MaterialCommunityIcons
-                name="close-circle"
-                size={18}
-                color="#8A9890"
-              />
-            </Pressable>
-          )}
-          <View style={styles.searchDivider} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open map filters"
-            onPress={() => {
-              setDraftCategory(category);
-              setFiltersVisible(true);
-            }}
-            style={({ pressed }) => [
-              styles.filterButton,
-              pressed && styles.controlPressed,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="tune-variant"
-              size={20}
-              color={theme.colors.emerald[600]}
-            />
-          </Pressable>
-        </View>
-      </View>
-
-      {mapLoadError && (
-        <View style={styles.mapErrorBanner}>
-          <Text style={styles.errorText}>
-            Map tiles could not load. Check your internet connection and MapTiler API key.
-          </Text>
-        </View>
-      )}
-
-      {__DEV__ && location && !locationIssue && (
-        <View style={[styles.debugLocation, { top: insets.top + 152 }]}>
-          <Text style={styles.debugLocationText}>
-            GPS {location.coords.latitude.toFixed(5)},{" "}
-            {location.coords.longitude.toFixed(5)}
-            {location.coords.accuracy != null
-              ? ` · ±${Math.round(location.coords.accuracy)} m`
-              : ""}
-          </Text>
-        </View>
-      )}
-
       {locationIssue && (
-        <View style={[styles.locationIssueBanner, { top: insets.top + 154 }]}>
+        <View style={[styles.permissionBanner, { top: insets.top }]}>
           <MaterialCommunityIcons
             name="map-marker-alert-outline"
             size={20}
             color="#9B5B12"
           />
-          <View style={styles.locationIssueCopy}>
-            <Text style={styles.errorText}>
+          <View style={styles.permissionContent}>
+            <Text style={styles.permissionText}>
               {getLocationIssueMessage(locationIssue, Boolean(location))}
             </Text>
-            <View style={styles.locationMessageActions}>
-              {locationIssue === "permission-blocked" && (
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={() => void openAppSettings()}
-                >
-                  <Text style={styles.retryText}>Settings</Text>
-                </TouchableOpacity>
-              )}
+            {locationIssue === "permission-blocked" && (
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={() => void openAppSettings()}
+              >
+                <Text style={styles.settingsText}>Settings</Text>
+              </TouchableOpacity>
+            )}
+            {!locationIssue && (
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={() => void requestLocation()}
@@ -538,18 +373,311 @@ export default function CollectorMapScreen() {
                   <Text style={styles.retryText}>Retry</Text>
                 )}
               </TouchableOpacity>
-            </View>
+            )}
           </View>
         </View>
       )}
 
-      <MapFilterBar
-        categories={categories}
-        selectedCategory={category}
-        onSelectCategory={setCategory}
-        topOffset={insets.top + 106}
+      {!locationIssue && !isLocating && location && (
+        <>
+          {mapStyle ? (
+            <Map
+              style={styles.map}
+              mapStyle={mapStyle}
+              attribution
+              logo={false}
+              compass
+              compassPosition={{ top: insets.top + 158, right: 16 }}
+              onDidFinishLoadingMap={() => setMapReady(true)}
+              onDidFailLoadingMap={() => {
+                console.warn("MapTiler map style failed to load.");
+                setMapLoadError(true);
+              }}
+              onPress={() => {
+                if (!markerPressedRef.current) {
+                  setSelectedPost(null);
+                  setSelectedCenter(null);
+                }
+                markerPressedRef.current = false;
+              }}
+            >
+              <Camera
+                ref={cameraRef}
+                initialViewState={{
+                  center: [
+                    ALGERIA_OVERVIEW.center.longitude,
+                    ALGERIA_OVERVIEW.center.latitude,
+                  ],
+                  zoom: ALGERIA_OVERVIEW.zoom,
+                }}
+                maxZoom={19}
+              />
+
+              {location && <UserLocation animated accuracy heading />}
+
+              {activeRoute && location && (
+                <RouteOverlay
+                  route={activeRoute.route}
+                  originCoordinate={{
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                  }}
+                  destinationCoordinate={activeRoute.destinationCoordinate}
+                />
+              )}
+
+              {visiblePosts.map((post) =>
+                post.latitude != null && post.longitude != null ? (
+                  <CircularPin
+                    key={`post-${post.id}`}
+                    coordinate={{
+                      latitude: post.latitude,
+                      longitude: post.longitude,
+                    }}
+                    image={post.image}
+                    ringColor={getCategoryColor(post.category)}
+                    isSelected={selectedPost?.id === post.id}
+                    onPress={() => {
+                      markerPressedRef.current = true;
+                      setSelectedPost(post);
+                      setSelectedCenter(null);
+                      cameraRef.current?.easeTo({
+                        center: [post.longitude!, post.latitude!],
+                        duration: 400,
+                      });
+                    }}
+                  />
+                ) : null
+              )}
+
+              {visibleCenters.map((center) => (
+                <CircularPin
+                  key={`center-${center.id}`}
+                  coordinate={{
+                    latitude: center.latitude,
+                    longitude: center.longitude,
+                  }}
+                  ringColor="#087F5B"
+                  iconName="recycle"
+                  isSelected={selectedCenter?.id === center.id}
+                  onPress={() => {
+                    markerPressedRef.current = true;
+                    setSelectedCenter(center);
+                    setSelectedPost(null);
+                    cameraRef.current?.easeTo({
+                      center: [center.longitude, center.latitude],
+                      duration: 400,
+                    });
+                  }}
+                />
+              ))}
+            </Map>
+          ) : (
+            <View style={[styles.map, styles.mapUnavailable]}>
+              <Text style={styles.mapUnavailableText}>
+                {mapStyleError ?? "Loading MapTiler map style…"}
+              </Text>
+            </View>
+          )}
+
+          {/* Top overlay - Header */}
+          <View
+            pointerEvents="box-none"
+            style={[styles.topOverlay, { top: insets.top + 6 }]}
+          >
+            <View style={styles.headingRow}>
+              <View style={styles.headingCopy}>
+                <Text style={styles.headingTitle}>Find nearby posts</Text>
+                <Text style={styles.headingSubtitle} numberOfLines={1}>
+                  {isLocating
+                    ? "Finding your location…"
+                    : locationIssue
+                      ? "Location needs attention"
+                      : location
+                        ? `${visiblePosts.length + visibleCenters.length} places around you`
+                        : "Discover waste to collect nearby"}
+                </Text>
+              </View>
+              <View style={styles.headerAction}>
+                <NotificationBell />
+              </View>
+            </View>
+
+            <View style={styles.searchBar}>
+              <MaterialCommunityIcons
+                name="magnify"
+                size={21}
+                color={theme.colors.text.tertiary}
+              />
+              <TextInput
+                accessibilityLabel="Search for materials or locations"
+                placeholder="Search materials or locations"
+                placeholderTextColor="#84928A"
+                value={searchText}
+                onChangeText={setSearchText}
+                returnKeyType="search"
+                style={styles.searchInput}
+              />
+              {searchText.length > 0 && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  onPress={() => setSearchText("")}
+                  hitSlop={8}
+                  style={styles.clearSearchButton}
+                >
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={18}
+                    color="#8A9890"
+                  />
+                </Pressable>
+              )}
+              <View style={styles.searchDivider} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open map filters"
+                onPress={() => {
+                  setDraftCategory(category);
+                  setFiltersVisible(true);
+                }}
+                style={({ pressed }) => [
+                  styles.filterButton,
+                  pressed && styles.controlPressed,
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="tune-variant"
+                  size={20}
+                  color={theme.colors.emerald[600]}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Category chips */}
+          <View
+            pointerEvents="box-none"
+            style={[styles.chipsWrapper, { top: insets.top + 106 }]}
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipsContainer}
+            >
+              {categories.map((item) => {
+                const selected = category === item;
+                const label = item === "ALL" ? "All" :
+                  String(item).charAt(0) + String(item).slice(1).toLowerCase();
+                const color = getCategoryColor(item as WasteCategory);
+
+                return (
+                  <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    key={String(item)}
+                    onPress={() => setCategory(item)}
+                    style={[
+                      styles.chip,
+                      selected && { backgroundColor: color },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={getCategoryIcon(item as WasteCategory) as any}
+                      size={16}
+                      color={selected ? "#FFFFFF" : color}
+                    />
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected && styles.selectedChipText,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </>
+      )}
+
+      {/* Permission denied state */}
+      {locationIssue === "permission-blocked" && !location && (
+        <View style={styles.permissionDenied}>
+          <MaterialCommunityIcons
+            name="map-marker-question-outline"
+            size={64}
+            color={theme.colors.text.tertiary}
+          />
+          <Text style={styles.permissionDeniedTitle}>Location Permission Needed</Text>
+          <Text style={styles.permissionDeniedDesc}>
+            Enable location access to see posts near you.
+          </Text>
+          <TouchableOpacity
+            onPress={() => openAppSettings()}
+            style={styles.settingsPrimaryButton}
+          >
+            <Text style={styles.settingsPrimaryText}>Open Settings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Loading state while location loads */}
+      {!location && !locationIssue && (
+        <LoadingScreen message="Finding your location…" />
+      )}
+
+      {/* No results */}
+      {!loading && !locationIssue && location &&
+       visiblePosts.length + visibleCenters.length === 0 && (
+        <View style={styles.noResults}>
+          <MaterialCommunityIcons
+            name="map-marker-radius-outline"
+            size={56}
+            color={theme.colors.text.tertiary}
+          />
+          <Text style={styles.noResultsTitle}>No posts within {radius} km</Text>
+          <Text style={styles.noResultsDesc}>
+            Try a wider radius or different category.
+          </Text>
+          <Pressable
+            onPress={() => setFiltersVisible(true)}
+            style={styles.changeRadiusButton}
+          >
+            <MaterialCommunityIcons
+              name="tune-variant"
+              size={18}
+              color={theme.colors.emerald[500]}
+            />
+            <Text style={styles.changeRadiusText}>Change Radius</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Map error banner */}
+      {mapLoadError && (
+        <View style={styles.mapErrorBanner}>
+          <Text style={styles.errorText}>
+            Map tiles could not load. Check your internet connection and MapTiler API key.
+          </Text>
+        </View>
+      )}
+
+      {/* Radius chip */}
+      <MapRadiusSlider
+        radius={radius}
+        loadingPosts={loading}
+        onRadiusChange={setRadius}
+        style={hasSelectedPlace ? {
+          top: insets.top + (locationIssue ? 290 : 205),
+        } : {
+          bottom: activeRoute ? 184 : 12,
+        }}
       />
 
+      {/* Recenter button */}
       {!hasSelectedPlace && (
         <View
           pointerEvents="box-none"
@@ -579,8 +707,9 @@ export default function CollectorMapScreen() {
         </View>
       )}
 
+      {/* Search results */}
       {searchText.trim().length > 0 &&
-        visiblePickups.length + visibleCenters.length === 0 && (
+        visiblePosts.length + visibleCenters.length === 0 && (
           <View
             style={[
               styles.noResults,
@@ -589,11 +718,12 @@ export default function CollectorMapScreen() {
             pointerEvents="none"
           >
             <Text style={styles.noResultsText}>
-              No pickups or centers match “{searchText.trim()}”.
+              No posts or centers match "{searchText.trim()}".
             </Text>
           </View>
         )}
 
+      {/* Filters modal */}
       <Modal
         visible={filtersVisible}
         transparent
@@ -617,14 +747,14 @@ export default function CollectorMapScreen() {
             <View style={styles.sheetHandle} />
             <View style={styles.filterSheetHeader}>
               <View>
-                <Text style={styles.filterSheetTitle}>Filters</Text>
+                <Text style={styles.filterSheetTitle}>Filter by Category</Text>
                 <Text style={styles.filterSheetSubtitle}>
                   Choose one material category
                 </Text>
               </View>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setDraftCategory("ALL")}
+                onPress={() => setCategory("ALL")}
                 hitSlop={8}
               >
                 <Text style={styles.clearFiltersText}>Clear</Text>
@@ -637,33 +767,30 @@ export default function CollectorMapScreen() {
               showsVerticalScrollIndicator={false}
             >
               {categories.map((item) => {
-                const selected = draftCategory === item;
+                const selected = category === item;
                 const label =
                   String(item).toLowerCase() === "all"
                     ? "All materials"
                     : `${String(item).charAt(0)}${String(item)
                         .slice(1)
                         .toLowerCase()}`;
+                const color = getCategoryColor(item as WasteCategory);
                 return (
                   <Pressable
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     key={String(item)}
-                    onPress={() => setDraftCategory(item)}
+                    onPress={() => setCategory(item)}
                     style={[
                       styles.filterOption,
-                      selected && styles.filterOptionSelected,
+                      selected && { backgroundColor: color },
                     ]}
                   >
                     <View style={styles.filterOptionLeft}>
                       <MaterialCommunityIcons
-                        name={selected ? "check-circle" : "circle-outline"}
+                        name={getCategoryIcon(item as WasteCategory) as any}
                         size={20}
-                        color={
-                          selected
-                            ? theme.colors.emerald[600]
-                            : theme.colors.text.tertiary
-                        }
+                        color={selected ? "#FFFFFF" : color}
                       />
                       <Text
                         style={[
@@ -693,36 +820,35 @@ export default function CollectorMapScreen() {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  setCategory(draftCategory);
                   setFiltersVisible(false);
                 }}
                 style={styles.filterApplyButton}
               >
-                <Text style={styles.filterApplyText}>Show results</Text>
+                <Text style={styles.filterApplyText}>Apply filter</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Selected pickup */}
-      {selectedPickup && !activeRoute && (
-        <PickupPreviewCard
-          pickup={selectedPickup}
+      {/* Selected post preview */}
+      {selectedPost && !activeRoute && (
+        <PostPreviewCard
+          post={selectedPost}
           distanceText={getDistanceText({
-            latitude: selectedPickup.post?.latitude ?? 0,
-            longitude: selectedPickup.post?.longitude ?? 0,
+            latitude: selectedPost.latitude,
+            longitude: selectedPost.longitude,
           })}
-          onDismiss={() => setSelectedPickup(null)}
+          onDismiss={() => setSelectedPost(null)}
           bottomOffset={12}
-          onViewDetails={(pickupId) =>
-            router.push(`/collector/pickup/${pickupId}`)
+          onViewDetails={(postId) =>
+            router.push(`/collector/post/${postId}`)
           }
           onGetDirections={() =>
             handleGetDirections({
-              latitude: selectedPickup.post?.latitude ?? 0,
-              longitude: selectedPickup.post?.longitude ?? 0,
-              title: selectedPickup.post?.title || `Pickup #${selectedPickup.id}`,
+              latitude: selectedPost.latitude,
+              longitude: selectedPost.longitude,
+              title: selectedPost.title,
             })
           }
           isLoadingRoute={calculatingRoute}
@@ -750,24 +876,6 @@ export default function CollectorMapScreen() {
           loading={calculatingRoute}
         />
       )}
-
-      <MapRadiusSlider
-        radius={radius}
-        loadingPosts={loading}
-        onRadiusChange={setRadius}
-        style={
-          hasSelectedPlace
-            ? {
-                top:
-                  insets.top +
-                  (locationIssue ? 290 : __DEV__ && location ? 184 : 150),
-                bottom: undefined,
-              }
-            : activeRoute
-              ? { bottom: 184 }
-              : { bottom: 12 }
-        }
-      />
     </View>
   );
 }
@@ -870,48 +978,23 @@ const styles = StyleSheet.create({
     opacity: 0.78,
     transform: [{ scale: 0.98 }],
   },
-  errorText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: theme.colors.forest[500],
-    fontFamily: theme.typography.fontFamily.medium,
+  floatingControlsRight: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    elevation: 4,
   },
-  locationMessageActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 9,
-  },
-  retryButton: {
-    backgroundColor: theme.colors.emerald[500],
-    paddingHorizontal: 12,
-    minHeight: 34,
+  recenterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-  },
-  retryText: {
-    color: "white",
-    fontSize: 11,
-    fontFamily: theme.typography.fontFamily.semiBold,
-  },
-  locationIssueBanner: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: "#FFF9EC",
     borderWidth: 1,
-    borderColor: "#F2E3C4",
-    zIndex: 20,
+    borderColor: "#E5ECE8",
     ...theme.shadows.md,
-  },
-  locationIssueCopy: {
-    flex: 1,
+    elevation: 4,
   },
   mapUnavailable: {
     justifyContent: "center",
@@ -934,55 +1017,161 @@ const styles = StyleSheet.create({
     zIndex: 16,
     ...theme.shadows.md,
   },
-  floatingControlsRight: {
-    position: "absolute",
-    right: 16,
-    zIndex: 10,
-    elevation: 4,
+  errorText: {
+    color: theme.colors.text.secondary,
+    fontSize: 14,
+    fontFamily: theme.typography.fontFamily.medium,
+    textAlign: "center",
   },
-  recenterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5ECE8",
-    ...theme.shadows.md,
-    elevation: 4,
-  },
-  debugLocation: {
+  permissionBanner: {
     position: "absolute",
     left: 16,
-    zIndex: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.88)",
+    right: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#FFF9EC",
+    borderWidth: 1,
+    borderColor: "#F2E3C4",
+    zIndex: 20,
+    ...theme.shadows.md,
   },
-  debugLocationText: {
-    color: theme.colors.forest[500],
-    fontSize: 9,
+  permissionContent: {
+    flex: 1,
+  },
+  permissionText: {
+    color: "#9B5B12",
+    fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.medium,
+  },
+  settingsButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: 8,
+  },
+  settingsText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: 8,
+  },
+  retryText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  permissionDenied: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.xl,
+    paddingBottom: 32,
+  },
+  permissionDeniedTitle: {
+    fontSize: theme.typography.fontSize['2xl'].size,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
+  },
+  permissionDeniedDesc: {
+    fontSize: theme.typography.fontSize.base.size,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  settingsPrimaryButton: {
+    marginTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.xl * 2,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: theme.radius.md,
+  },
+  settingsPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
   noResults: {
     position: "absolute",
     left: 16,
-    right: 72,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#E5ECE8",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    right: 16,
+    paddingHorizontal: theme.spacing.xl,
+    alignItems: "center",
     zIndex: 9,
-    ...theme.shadows.sm,
+  },
+  noResultsTitle: {
+    fontSize: theme.typography.fontSize.lg.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
+  },
+  noResultsDesc: {
+    fontSize: theme.typography.fontSize.base.size,
+    color: theme.colors.text.secondary,
+    marginTop: theme.spacing.sm,
+    textAlign: "center",
+  },
+  changeRadiusButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.emerald[50],
+    borderRadius: theme.radius.md,
+  },
+  changeRadiusText: {
+    color: theme.colors.emerald[600],
+    fontSize: theme.typography.fontSize.base.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
   noResultsText: {
     color: theme.colors.text.secondary,
     fontSize: 12,
     fontFamily: theme.typography.fontFamily.medium,
+  },
+  chipsWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    elevation: 8,
+  },
+  chipsContainer: {
+    paddingHorizontal: 16,
+    gap: 7,
+    alignItems: "center",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 36,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radius.md,
+    gap: 5,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+  },
+  chipText: {
+    fontSize: theme.typography.fontSize.sm.size,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.primary,
+  },
+  selectedChipText: {
+    color: "#FFFFFF",
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
   modalRoot: {
     flex: 1,
@@ -1049,10 +1238,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
   },
-  filterOptionSelected: {
-    borderColor: "#A8D9C4",
-    backgroundColor: "#F1F8F4",
-  },
   filterOptionLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -1064,7 +1249,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
   },
   filterOptionTextSelected: {
-    color: theme.colors.forest[500],
+    color: "#FFFFFF",
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   selectedLabel: {
