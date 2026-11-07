@@ -191,9 +191,11 @@ export default function CollectorMapScreen() {
         ]);
 
         // Filter posts: only OPEN status with available quantity > 0
-        const availablePosts = (posts || []).filter(
-          p => p.status === PostStatus.OPEN && (p.available_quantity ?? 0) > 0
-        );
+        const availablePosts = (posts || []).filter((p) => {
+          const quantities = getPostQuantities(p);
+          const available = quantities.available ?? 0;
+          return p.status === PostStatus.OPEN && available > 0;
+        });
 
         if (isMounted) {
           setMapPosts(availablePosts);
