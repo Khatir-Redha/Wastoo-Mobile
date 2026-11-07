@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { View, ActivityIndicator, Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../../context/AuthProvider";
+import { LoadingScreen } from "../../components/ui/LoadingScreen";
 
 export default function LegacyOAuthCallbackScreen() {
   const params = useLocalSearchParams<{
@@ -47,20 +47,5 @@ export default function LegacyOAuthCallbackScreen() {
     router,
   ]);
 
-  return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#fff",
-        gap: 16,
-      }}
-    >
-      <ActivityIndicator size="large" color="#27AE60" />
-      <Text style={{ color: "#6d7a6e", fontSize: 14 }}>
-        Completing sign-in…
-      </Text>
-    </View>
-  );
+  return <LoadingScreen message="Signing you in…" />;
 }

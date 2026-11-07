@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, ActivityIndicator, Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../../context/AuthProvider";
+import { LoadingScreen } from "../../components/ui/LoadingScreen";
 
 const getSingleParam = (value?: string | string[]) =>
   Array.isArray(value) ? value[0] : value;
@@ -71,20 +71,10 @@ export default function OAuthCallbackScreen() {
     router,
   ]);
 
-  const message = failed ? failureMessage : "Completing sign-in…";
+  // Use LoadingScreen consistently for all auth states
+  if (failed) {
+    return <LoadingScreen message={failureMessage} />;
+  }
 
-  return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#fff",
-        gap: 16,
-      }}
-    >
-      {!failed && <ActivityIndicator size="large" color="#27AE60" />}
-      <Text style={{ color: "#6d7a6e", fontSize: 14 }}>{message}</Text>
-    </View>
-  );
+  return <LoadingScreen message="Signing you in…" />;
 }

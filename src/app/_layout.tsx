@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../../context/AuthProvider";
 import { getAuthRoute } from "../../lib/auth-profile";
 import SessionExpiredModal from "../components/SessionExpiredModal";
+import { LoadingScreen } from "../components/ui/LoadingScreen";
 import "../global.css";
 
 function NavigationGuard() {
@@ -84,11 +84,7 @@ function NavigationGuard() {
   }, [authState, expectedRoute, isAtExpectedRoute, router, segments, user?.role]);
 
   if (authState === "INITIALIZING") {
-    return (
-      <View style={styles.overlay}>
-        <ActivityIndicator size="large" color="#087F5B" />
-      </View>
-    );
+    return <LoadingScreen message="Signing you in…" />;
   }
 
   if (authState === "RESTORATION_ERROR") {
@@ -114,9 +110,7 @@ function NavigationGuard() {
       {isAtExpectedRoute ? (
         <Slot />
       ) : (
-        <View style={styles.overlay}>
-          <ActivityIndicator size="large" color="#087F5B" />
-        </View>
+        <LoadingScreen message="Signing you in…" />
       )}
       <SessionExpiredModal
         visible={sessionExpired}
