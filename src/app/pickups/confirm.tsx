@@ -101,7 +101,7 @@ export default function ConfirmPickupScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Feather name="x" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Complete Pickup</Text>
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.bold,
     color: theme.colors.text.primary,
   },
-  backButton: {
+  closeButton: {
     width: 44,
     height: 44,
     alignItems: 'center',

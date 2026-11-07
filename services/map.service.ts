@@ -26,16 +26,17 @@ export interface getMapPostsDTO {
   category?: WasteCategory;
 }
 
-export interface MapPostsResponse {
+export interface MapPostResponse {
   id: number;
   latitude: number;
   longitude: number;
   category: WasteCategory;
   title: string;
-  status?: PostStatus;
+  status: PostStatus;
   image?: string | null;
   quantity?: number;
   available_quantity?: number;
+  total_quantity?: number;
 }
 
 export interface MapCenterResponse {
@@ -64,6 +65,11 @@ export interface MapPickupResponse {
     quantity?: number;
   };
 }
+
+/**
+ * Legacy type alias for backwards compatibility
+ */
+export type MapPostsResponse = MapPostResponse;
 
 class MapService {
   static async getMapPosts(query: getMapPostsDTO): Promise<[MapPostsResponse]> {

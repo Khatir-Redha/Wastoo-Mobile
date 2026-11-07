@@ -16,8 +16,10 @@ export default function CollectorRootLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="request/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="pickup/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="pickup/confirm" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="pickup/confirm" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }
