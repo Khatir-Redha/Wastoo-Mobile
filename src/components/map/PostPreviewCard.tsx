@@ -6,20 +6,47 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { MapPostsResponse, PostStatus, WasteCategory } from "../../../services/map.service";
+import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { MapPostResponse, WasteCategory, PostStatus } from "../../../services/map.service";
 import { theme } from "../../theme/tokens";
+import { getCategoryColor, getCategoryIcon, getCategoryName } from "../../utils/category-utils";
 
 interface PostPreviewCardProps {
-  post: MapPostsResponse;
+  post: MapPostResponse;
   distanceText: string;
   onViewDetails: (postId: number) => void;
-  onGetDirections?: (post: MapPostsResponse) => void;
+  onGetDirections?: (post: MapPostResponse) => void;
   isLoadingRoute?: boolean;
   onDismiss?: () => void;
   bottomOffset?: number;
 }
+
+const getStatusColor = (status: PostStatus) => {
+  switch (status) {
+    case PostStatus.OPEN: return theme.colors.emerald[500];
+    case PostStatus.CLAIMED: return theme.colors.warning[500];
+    case PostStatus.COMPLETED: return theme.colors.success;
+    default: return theme.colors.text.tertiary;
+  }
+};
+
+const getAvailabilityText = (post: MapPostResponse) => {
+  const available = post.available_quantity ?? 0;
+  const total = post.quantity ?? 0;
+
+  if (available <= 0) {
+    return { text: "Fully Reserved", color: theme.colors.text.tertiary };
+  }
+
+  const unit: WasteCategory extends 'ORGANIC' | 'HAZARDOUS' ? 'L' : 'kg' =
+    ['ORGANIC', 'HAZARDOUS'].includes(String(post.category)) ? ('L' as any) : ('kg' as any);
+
+  return {
+    text: `Available • ${available} / ${total} ${unit}`,
+    color: theme.colors.emerald[600]
+  };
+};
 
 export default function PostPreviewCard({
   post,
@@ -30,24 +57,13 @@ export default function PostPreviewCard({
   onDismiss,
   bottomOffset = 16,
 }: PostPreviewCardProps) {
-  const getCategoryLabel = (value?: WasteCategory) => {
-    if (value === undefined) return "Waste";
-    return WasteCategory[value] ?? "Waste";
-  };
-
-  const statusColor =
-    post.status === PostStatus.OPEN
-      ? theme.colors.success
-      : post.status === PostStatus.CLAIMED
-        ? theme.colors.warning
-        : "#9CA3AF";
   const imageUri = post.image;
+  const availability = getAvailabilityText(post);
 
   return (
     <View style={[styles.cardContainer, { bottom: bottomOffset }]}>
       <View style={styles.grabber} />
       <View style={styles.contentRow}>
-        {/* Post thumbnail */}
         {imageUri ? (
           <Image
             source={{ uri: imageUri }}
@@ -60,35 +76,36 @@ export default function PostPreviewCard({
             <MaterialCommunityIcons
               name="recycle"
               size={26}
-              color={theme.colors.emerald[600]}
+              color={getCategoryColor(post.category)}
             />
           </View>
         )}
 
-        {/* Post details */}
         <View style={styles.detailsCol}>
           <View style={styles.headerRow}>
             <Text style={styles.title} numberOfLines={2}>
-              {post.title || "Recyclable Material"}
+              {post.title}
             </Text>
-            <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText}>
-                {getCategoryLabel(post.category)}
-              </Text>
+            <View style={[styles.availabilityBadge, { backgroundColor: availability.color }]}>
+              <Text style={styles.availabilityText}>{availability.text}</Text>
             </View>
           </View>
 
-          {/* Status & distance */}
           <View style={styles.metaRow}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={styles.statusText}>
-              {post.status === PostStatus.OPEN ? "Available for pickup" : "Updated"}
-            </Text>
-          </View>
-
-          <View style={styles.distanceRow}>
-            <Feather name="navigation" size={13} color={theme.colors.emerald[500]} />
-            <Text style={styles.distanceText}>{distanceText}</Text>
+            <View style={styles.metaItem}>
+              <MaterialCommunityIcons
+                name={getCategoryIcon(post.category) as any}
+                size={14}
+                color={getCategoryColor(post.category)}
+              />
+              <Text style={styles.categoryText}>
+                {getCategoryName(post.category)}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Feather name="map-pin" size={12} color={theme.colors.text.quaternary} />
+              <Text style={styles.distanceText}>{distanceText}</Text>
+            </View>
           </View>
         </View>
         {onDismiss ? (
@@ -104,7 +121,6 @@ export default function PostPreviewCard({
         ) : null}
       </View>
 
-      {/* Action Buttons: Directions (primary) + View Details */}
       <View style={styles.actionsRow}>
         {onGetDirections && (
           <Pressable
@@ -144,8 +160,8 @@ export default function PostPreviewCard({
 const styles = StyleSheet.create({
   cardContainer: {
     position: "absolute",
-    left: 16,
-    right: 16,
+    left: 12,
+    right: 12,
     backgroundColor: "#FFFFFF",
     borderRadius: 22,
     paddingHorizontal: 16,
@@ -157,7 +173,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.14,
     shadowRadius: 14,
-    elevation: 8,
+    zIndex: 40,
+    elevation: 16,
   },
   grabber: {
     alignSelf: "center",
@@ -203,45 +220,35 @@ const styles = StyleSheet.create({
     marginRight: 8,
     lineHeight: 20,
   },
-  categoryBadge: {
-    backgroundColor: "#EAF6F0",
+  availabilityBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     flexShrink: 0,
   },
-  categoryBadgeText: {
-    color: theme.colors.emerald[700],
-    fontSize: theme.typography.fontSize.xs.size,
+  availabilityText: {
+    fontSize: 10,
     fontFamily: theme.typography.fontFamily.semiBold,
-    textTransform: "capitalize",
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 3,
+    gap: 12,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.success,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: theme.typography.fontSize.xs.size,
-    color: theme.colors.text.secondary,
-    fontFamily: theme.typography.fontFamily.regular,
-  },
-  distanceRow: {
+  metaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  distanceText: {
-    fontSize: theme.typography.fontSize.sm.size,
+  categoryText: {
+    fontSize: theme.typography.fontSize.xs.size,
     fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.emerald[600],
+    color: theme.colors.text.secondary,
+  },
+  distanceText: {
+    fontSize: theme.typography.fontSize.xs.size,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    color: theme.colors.text.tertiary,
   },
   dismissButton: {
     width: 30,
@@ -268,7 +275,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minHeight: 46,
     gap: 6,
-    ...theme.shadows.sm,
   },
   directionsButtonText: {
     color: "#FFFFFF",
@@ -283,13 +289,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.canvas.secondary,
+    backgroundColor: "#F2F7F4",
     borderRadius: 12,
     minHeight: 46,
     gap: 4,
   },
   detailsButtonText: {
-    color: theme.colors.emerald[700],
+    color: theme.colors.emerald[600],
     fontSize: theme.typography.fontSize.sm.size,
     fontFamily: theme.typography.fontFamily.semiBold,
   },

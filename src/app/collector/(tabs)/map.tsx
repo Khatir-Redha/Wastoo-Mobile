@@ -45,6 +45,7 @@ import {
 } from "../../../hooks/useDeviceLocation";
 import { useMapTilerStyle } from "../../../hooks/useMapTilerStyle";
 import { theme } from "../../../theme/tokens";
+import { getCategoryColor, getCategoryIcon, getCategoryName } from "../../../utils/category-utils";
 import NotificationBell from "../../../components/NotificationBell";
 import { LoadingScreen } from "../../../components/ui/LoadingScreen";
 
@@ -310,34 +311,6 @@ export default function CollectorMapScreen() {
     const percentage = (available / (post.quantity ?? 1)) * 100;
     if (percentage < 20) return { text: "Limited", color: theme.colors.mint[500] };
     return { text: "Available", color: theme.colors.emerald[600] };
-  };
-
-  const getCategoryColor = (category: WasteCategory) => {
-    switch (category) {
-      case WasteCategory.PLASTIC: return theme.colors.category.plastic;
-      case WasteCategory.GLASS: return theme.colors.category.glass;
-      case WasteCategory.PAPER: return theme.colors.category.paper;
-      case WasteCategory.METAL: return theme.colors.category.metal;
-      case WasteCategory.ORGANIC: return theme.colors.category.organic;
-      case WasteCategory.TEXTILE: return theme.colors.category.general;
-      case WasteCategory.HAZARDOUS: return theme.colors.error[500];
-      case WasteCategory.MIXED: return theme.colors.category.general;
-      default: return theme.colors.emerald[500];
-    }
-  };
-
-  const getCategoryIcon = (category: WasteCategory) => {
-    switch (category) {
-      case WasteCategory.PLASTIC: return "recycle";
-      case WasteCategory.GLASS: return "bottle-wine";
-      case WasteCategory.PAPER: return "newspaper-variant";
-      case WasteCategory.METAL: return "cube";
-      case WasteCategory.ORGANIC: return "leaf";
-      case WasteCategory.TEXTILE: return "tshirt-crew";
-      case WasteCategory.HAZARDOUS: return "alert-octagon";
-      case WasteCategory.MIXED: return "package-variant-closed";
-      default: return "recycle";
-    }
   };
 
   return (
