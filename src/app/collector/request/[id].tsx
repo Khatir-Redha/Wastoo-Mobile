@@ -8,6 +8,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import RequestService, { Request, RequestStatus } from '../../../../services/request.service';
 import PostService, { Post } from '../../../../services/post.service';
 import { theme } from '../../../theme/tokens';
+import ScreenHeader from '../../../components/collector/ScreenHeader';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
@@ -81,12 +82,15 @@ export default function CollectorRequestDetailScreen() {
 
   if (!request) {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <MaterialCommunityIcons name="clipboard-alert-outline" size={56} color={theme.colors.text.tertiary} />
-        <Text style={styles.errorTitle}>Request not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <SafeAreaView style={styles.screen}>
+        <ScreenHeader title="Request not found" showBack={true} subtitle="" />
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="clipboard-alert-outline" size={56} color={theme.colors.text.tertiary} />
+          <Text style={styles.errorTitle}>Request not found</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -101,22 +105,15 @@ export default function CollectorRequestDetailScreen() {
     : 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
 
   return (
-    <SafeAreaView style={styles.container} style={{ paddingTop: Platform.OS === 'android' ? 40 : 0 }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Request #{request.id}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <SafeAreaView style={styles.screen}>
+      <ScreenHeader title={post?.title ?? "Request Details"} showBack={true} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* Status Badge */}
         <View style={styles.statusSection}>
-          <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
-            <MaterialCommunityIcons name={statusStyle.icon} size={20} color={statusStyle.text} />
+          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+            <MaterialCommunityIcons name={statusStyle.icon as any} size={20} color={statusStyle.text} />
             <Text style={{ color: statusStyle.text, ...styles.statusText }}>
               {formatStatus(request.status)}
             </Text>
@@ -155,48 +152,18 @@ export default function CollectorRequestDetailScreen() {
                   </Text>
                 </View>
               )}
-              {request.post?.address && (
+              {post?.address && (
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.text.tertiary} />
-                  <Text style={styles.metaText} numberOfLines={1}>{request.post.address}</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>{post.address}</Text>
                 </View>
               )}
             </View>
           </View>
-          {request.post?.description && (
-            <Text style={styles.postDescription}>{request.post.description}</Text>
+          {post?.description && (
+            <Text style={styles.postDescription}>{post.description}</Text>
           )}
         </View>
-
-        {/* Supplier Info */}
-        {request.post && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>SUPPLIER</Text>
-            <View style={styles.supplierRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {request.post.author?.name?.charAt(0).toUpperCase() || 'S'}
-                </Text>
-              </View>
-              <View>
-                <Text style={styles.supplierName}>{request.post.author?.name || 'Supplier'}</Text>
-                {request.post.author?.phone && (
-                  <Text style={styles.supplierPhone}>{request.post.author.phone}</Text>
-                )}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Message */}
-        {request.message && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>YOUR MESSAGE</Text>
-            <View style={styles.messageBubble}>
-              <Text style={styles.messageText}>"{request.message}"</Text>
-            </View>
-          </View>
-        )}
 
         {/* Pickup Info - if accepted */}
         {request.status === RequestStatus.ACCEPTED && request.pickup && (
@@ -234,10 +201,7 @@ export default function CollectorRequestDetailScreen() {
               {actionLoading ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <>
-                  <MaterialCommunityIcons name="undo" size={18} color="#FFFFFF" />
-                  <Text style={styles.withdrawButtonText}>Withdraw Request</Text>
-                </>
+                <Text style={styles.withdrawButtonText}>Withdraw Request</Text>
               )}
             </TouchableOpacity>
           )}
@@ -266,7 +230,7 @@ export default function CollectorRequestDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
     backgroundColor: theme.colors.canvas.secondary,
   },
@@ -300,26 +264,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontFamily: theme.typography.fontFamily.semiBold,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    backgroundColor: theme.colors.canvas.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border.default,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontFamily: theme.typography.fontFamily.bold,
-    color: theme.colors.text.primary,
-  },
-  headerSpacer: {
-    width: 44,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -405,46 +349,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     lineHeight: 20,
   },
-  supplierRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.emerald[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: theme.colors.emerald[700],
-    fontSize: 18,
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  supplierName: {
-    fontSize: 16,
-    fontFamily: theme.typography.fontFamily.semiBold,
-    color: theme.colors.text.primary,
-  },
-  supplierPhone: {
-    marginTop: 2,
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.medium,
-    color: theme.colors.text.tertiary,
-  },
-  messageBubble: {
-    padding: 16,
-    backgroundColor: theme.colors.canvas.tertiary,
-    borderRadius: theme.radius.md,
-  },
-  messageText: {
-    fontSize: 14,
-    fontFamily: theme.typography.fontFamily.regular,
-    color: theme.colors.text.primary,
-    fontStyle: 'italic',
-  },
   pickupInfo: {
     gap: 12,
   },
@@ -480,7 +384,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    backgroundColor: theme.colors.error,
+    backgroundColor: theme.colors.error[500],
     borderRadius: theme.radius.md,
   },
   withdrawButtonText: {
