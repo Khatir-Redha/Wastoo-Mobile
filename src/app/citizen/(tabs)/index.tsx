@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Platform, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Platform, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import NotificationBell from '../../../components/NotificationBell';
 import BadgesButton from '../../../components/BadgesButton';
 import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
-import { Button, Card } from '../../../components/ui';
+import { Button, Card, ListSkeleton, Skeleton } from '../../../components/ui';
 import { usePendingRequestsSummary } from '@/hooks/usePendingRequestsSummary';
 
 const POST_STATUS_STYLES = {
@@ -63,12 +63,11 @@ export default function CitizenHomeScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchData(true); }, [fetchData]);
+  useEffect(() => { fetchData(false); }, [fetchData]);
 
   const onRefresh = () => {
-    setRefreshing(true);
-    fetchData(true);
     refreshPending();
+    fetchData(true);
   };
 
   const openCreatePost = () => {
@@ -159,6 +158,37 @@ export default function CitizenHomeScreen() {
     </Card>
   );
 
+  const renderSummarySkeleton = () => (
+    <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: theme.spacing.md }}>
+        <Card variant="elevated" style={{ flex: 1, padding: theme.spacing.md, borderRadius: theme.radius.xl }}>
+          <Skeleton width="80%" height={14} style={{ marginBottom: 4 }} />
+          <Skeleton width="40%" height={24} />
+        </Card>
+        <Card variant="elevated" style={{ flex: 1, padding: theme.spacing.md, borderRadius: theme.radius.xl }}>
+          <Skeleton width="80%" height={14} style={{ marginBottom: 4 }} />
+          <Skeleton width="40%" height={24} />
+        </Card>
+        <Card variant="elevated" style={{ flex: 1, padding: theme.spacing.md, borderRadius: theme.radius.xl }}>
+          <Skeleton width="80%" height={14} style={{ marginBottom: 4 }} />
+          <Skeleton width="40%" height={24} />
+        </Card>
+      </View>
+    </View>
+  );
+
+  const renderRecentPostsSkeleton = () => (
+    <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
+        <Text style={{ fontSize: theme.typography.fontSize.lg.size, fontFamily: theme.typography.fontFamily.bold, color: theme.colors.text.primary }}>Your Recent Posts</Text>
+        <TouchableOpacity onPress={() => router.push('/citizen/my-posts')}>
+          <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.emerald[600], fontFamily: theme.typography.fontFamily.semiBold }}>View All</Text>
+        </TouchableOpacity>
+      </View>
+      <ListSkeleton count={3} />
+    </View>
+  );
+
   const renderRecentPosts = () => {
     const recentPosts = myPosts.slice(0, 3);
 
@@ -170,76 +200,87 @@ export default function CitizenHomeScreen() {
             <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.emerald[600], fontFamily: theme.typography.fontFamily.semiBold }}>View All</Text>
           </TouchableOpacity>
         </View>
-        {recentPosts.length === 0 ? (
-          <Card variant="elevated" style={{ padding: theme.spacing.xl, borderRadius: theme.radius.xl, alignItems: 'center' }}>
-            <Feather name="package" size={48} color={theme.colors.mint[500]} style={{ marginBottom: theme.spacing.md }} />
-            <Text style={{ fontSize: theme.typography.fontSize.md.size, color: theme.colors.text.secondary, textAlign: 'center', marginBottom: theme.spacing.md }}>
-              You haven&apos;t listed any waste yet
-            </Text>
-            <Button title="List Your First Waste" variant="primary" size="md" onPress={openCreatePost} />
-          </Card>
-        ) : (
-          <View style={{ gap: theme.spacing.md }}>
-            {recentPosts.map((post) => {
-              const status = getPostStatus(post);
-              const statusStyle = POST_STATUS_STYLES[status as keyof typeof POST_STATUS_STYLES] || POST_STATUS_STYLES.OPEN;
-              const total = post.quantity ?? 0;
-              const reserved = post.reserved_quantity ?? 0;
-              const collected = post.collected_quantity ?? 0;
-              const available = Math.max(0, total - reserved - collected);
-              const unit = getQuantityUnit(post.category || '');
-
-              let rawUrl = post.images?.[0]?.url?.trim();
-              if (!rawUrl) {
-                rawUrl = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
-              } else if (rawUrl.includes('cloudinary.com') && rawUrl.startsWith('http://')) {
-                rawUrl = rawUrl.replace('http://', 'https://');
-              }
-
+        <View style={{ gap: theme.spacing.md }}>
+          {recentPosts.map((post, index) => {
+            // Show skeleton for 3 items when loading, otherwise show actual posts
+            if (isInitialLoad && index < 3) {
               return (
-                <TouchableOpacity
-                  key={post.id}
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/citizen/${post.id}`)}
-                  style={{ backgroundColor: theme.colors.canvas.primary, borderRadius: theme.radius.xl, borderWidth: 1, borderColor: theme.colors.border.default, overflow: 'hidden', ...theme.shadows.sm }}
-                >
-                  <View style={{ flexDirection: 'row', padding: theme.spacing.md }}>
-                    <View style={{ width: 60, height: 60, borderRadius: theme.radius.md, backgroundColor: theme.colors.canvas.tertiary, overflow: 'hidden' }}>
-                      <View style={{ flex: 1 }}><Image source={{ uri: rawUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /></View>
-                    </View>
-                    <View style={{ marginLeft: theme.spacing.md, flex: 1, justifyContent: 'space-between' }}>
-                      <View>
-                        <Text numberOfLines={1} style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary }}>
-                          {post.title}
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs }}>
-                          <View style={{ backgroundColor: statusStyle.bg, paddingHorizontal: theme.spacing.xs, paddingVertical: 2, borderRadius: theme.radius.sm }}>
-                            <Text style={{ fontSize: theme.typography.fontSize.xs.size, color: statusStyle.text, fontFamily: theme.typography.fontFamily.medium }}>
-                              {statusStyle.label}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={{ marginTop: theme.spacing.xs, color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm.size }}>
-                          {available} / {total} {unit} available
-                        </Text>
+                <React.Fragment key={`skeleton-${index}`}>
+                  <Card variant="elevated" style={{ backgroundColor: theme.colors.canvas.primary, borderRadius: theme.radius.xl, borderWidth: 1, borderColor: theme.colors.border.default, overflow: 'hidden' }}>
+                    <View style={{ flexDirection: 'row', padding: theme.spacing.md }}>
+                      <Skeleton width={60} height={60} borderRadius={theme.radius.md} />
+                      <View style={{ marginLeft: theme.spacing.md, flex: 1, gap: 8 }}>
+                        <Skeleton width="80%" height={20} />
+                        <Skeleton width="40%" height={16} />
+                        <Skeleton width="60%" height={14} />
                       </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
+                  </Card>
+                </React.Fragment>
               );
-            })}
-          </View>
-        )}
+            }
+
+            const status = getPostStatus(post);
+            const statusStyle = POST_STATUS_STYLES[status as keyof typeof POST_STATUS_STYLES] || POST_STATUS_STYLES.OPEN;
+            const total = post.quantity ?? 0;
+            const reserved = post.reserved_quantity ?? 0;
+            const collected = post.collected_quantity ?? 0;
+            const available = Math.max(0, total - reserved - collected);
+            const unit = getQuantityUnit(post.category || '');
+
+            let rawUrl = post.images?.[0]?.url?.trim();
+            if (!rawUrl) {
+              rawUrl = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+            } else if (rawUrl.includes('cloudinary.com') && rawUrl.startsWith('http://')) {
+              rawUrl = rawUrl.replace('http://', 'https://');
+            }
+
+            return (
+              <TouchableOpacity
+                key={post.id}
+                activeOpacity={0.8}
+                onPress={() => router.push(`/citizen/${post.id}`)}
+                style={{ backgroundColor: theme.colors.canvas.primary, borderRadius: theme.radius.xl, borderWidth: 1, borderColor: theme.colors.border.default, overflow: 'hidden', ...theme.shadows.sm }}
+              >
+                <View style={{ flexDirection: 'row', padding: theme.spacing.md }}>
+                  <View style={{ width: 60, height: 60, borderRadius: theme.radius.md, backgroundColor: theme.colors.canvas.tertiary, overflow: 'hidden' }}>
+                    <View style={{ flex: 1 }}><Image source={{ uri: rawUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" /></View>
+                  </View>
+                  <View style={{ marginLeft: theme.spacing.md, flex: 1, justifyContent: 'space-between' }}>
+                    <View>
+                      <Text numberOfLines={1} style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.text.primary }}>
+                        {post.title}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs }}>
+                        <View style={{ backgroundColor: statusStyle.bg, paddingHorizontal: theme.spacing.xs, paddingVertical: 2, borderRadius: theme.radius.sm }}>
+                          <Text style={{ fontSize: theme.typography.fontSize.xs.size, color: statusStyle.text, fontFamily: theme.typography.fontFamily.medium }}>
+                            {statusStyle.label}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ marginTop: theme.spacing.xs, color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm.size }}>
+                        {available} / {total} {unit} available
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     );
   };
 
-  if (loading && !refreshing) {
+  const isInitialLoad = loading && !refreshing;
+
+  if (isInitialLoad) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.secondary }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-        </View>
+        {renderHeader()}
+        {renderSummarySkeleton()}
+        {renderPrimaryAction()}
+        {renderRecentPostsSkeleton()}
       </SafeAreaView>
     );
   }

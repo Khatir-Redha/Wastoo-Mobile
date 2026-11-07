@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, RefreshControl, SafeAreaView, Platform, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, SafeAreaView, Platform, TouchableOpacity, FlatList } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import PostService, { Post } from '../../../../services/post.service';
 import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
-import { Button, Input } from '../../../components/ui';
+import { Button, Input, Card, Skeleton } from '../../../components/ui';
 import BadgesButton from '../../../components/BadgesButton';
 import NotificationBell from '../../../components/NotificationBell';
 import { usePendingRequestsSummary } from '@/hooks/usePendingRequestsSummary';
@@ -65,9 +65,9 @@ export default function CitizenMyPostsScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchPosts(true); }, [fetchPosts]);
+  useEffect(() => { fetchPosts(false); }, [fetchPosts]);
 
-  const onRefresh = () => { setRefreshing(true); fetchPosts(true); };
+  const onRefresh = () => { fetchPosts(true); };
 
   const filteredPosts = useMemo(() => {
     return posts.filter(post => {
@@ -229,12 +229,54 @@ export default function CitizenMyPostsScreen() {
     </View>
   );
 
-  if (loading && !refreshing) {
+  const isInitialLoad = loading && !refreshing;
+
+  if (isInitialLoad) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.canvas.secondary }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={theme.colors.emerald[500]} />
-        </View>
+        <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+          {/* Header Skeleton */}
+          <View style={{ paddingHorizontal: theme.spacing.xl, paddingTop: Platform.OS === 'ios' ? 20 : 44, paddingBottom: theme.spacing.lg }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <Skeleton width="80%" height={28} style={{ marginBottom: 8 }} />
+                <Skeleton width="60%" height={16} />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md }}>
+                <Skeleton width={40} height={40} borderRadius={20} />
+                <Skeleton width={40} height={40} borderRadius={20} />
+              </View>
+            </View>
+          </View>
+
+          {/* Search Skeleton */}
+          <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg }}>
+            <Skeleton width="100%" height={40} borderRadius={theme.radius.md} />
+          </View>
+
+          {/* Filter Buttons Skeleton */}
+          <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md }}>
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} width={80} height={32} borderRadius={theme.radius.md} />
+            ))}
+          </View>
+
+          {/* Post Cards Skeleton */}
+          <View style={{ paddingHorizontal: theme.spacing.xl, gap: theme.spacing.md }}>
+            {[1, 2, 3].map(i => (
+              <Card key={i} variant="elevated" style={{ borderRadius: theme.radius.xl, borderWidth: 1, borderColor: theme.colors.border.default, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', padding: theme.spacing.md }}>
+                  <Skeleton width={80} height={80} borderRadius={theme.radius.md} />
+                  <View style={{ marginLeft: theme.spacing.md, flex: 1, gap: 8 }}>
+                    <Skeleton width="80%" height={20} />
+                    <Skeleton width="40%" height={16} />
+                    <Skeleton width="60%" height={14} />
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
