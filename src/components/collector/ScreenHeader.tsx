@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { theme } from '../../theme/tokens';
 import NotificationBell from '../NotificationBell';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ScreenHeaderProps {
   title?: string;
@@ -22,6 +23,7 @@ export default function ScreenHeader({
 }: ScreenHeaderProps) {
   const router = useRouter();
   const firstName = title?.split(' ')[0] || 'Collector';
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBack) {
@@ -32,7 +34,7 @@ export default function ScreenHeader({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 12 }]}>
       {showBack && (
         <TouchableOpacity
           accessibilityRole="button"
