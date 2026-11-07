@@ -26,11 +26,11 @@ export default function CitizenRootLayout() {
         }}
       />
 
-      {/* Incoming requests screen (full screen, no tabs) */}
+      {/* Requests screen with tabbed interface (no tabs) */}
       <Stack.Screen
-        name="incoming-requests"
+        name="requests"
         options={{
-          animation: 'slide_from_bottom',
+          animation: 'slide_from_right',
         }}
       />
 

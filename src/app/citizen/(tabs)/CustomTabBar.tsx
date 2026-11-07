@@ -11,7 +11,7 @@ import { usePendingRequestsSummary } from "@/hooks/usePendingRequestsSummary";
 const TAB_CONFIG: Record<string, { label: string; icon: string; iconLib: "Feather" | "MaterialCommunityIcons" }> = {
   index: { label: "Home", icon: "home-variant-outline", iconLib: "MaterialCommunityIcons" },
   "my-posts": { label: "My Posts", icon: "bar-chart-2", iconLib: "Feather" },
-  pickups: { label: "Pickups", icon: "package-variant-closed", iconLib: "MaterialCommunityIcons" },
+  requests: { label: "Requests", icon: "package-variant-closed", iconLib: "MaterialCommunityIcons" },
   profile: { label: "Profile", icon: "user", iconLib: "Feather" },
 };
 
@@ -73,13 +73,14 @@ export default function CustomTabBar() {
           </TouchableOpacity>
         </View>
 
-        {/* Slot 4: Pickups */}
+        {/* Slot 4: Requests */}
         <View style={styles.tabSlot}>
           <TabButton
-            routeName="pickups"
-            config={TAB_CONFIG["pickups"]}
-            isFocused={focusedRoute === "pickups"}
-            showBadge={false}
+            routeName="requests"
+            config={TAB_CONFIG["requests"]}
+            isFocused={focusedRoute === "requests"}
+            showBadge={pendingCount > 0}
+            badgeCount={pendingCount}
           />
         </View>
 

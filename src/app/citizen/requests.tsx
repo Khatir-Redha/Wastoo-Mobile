@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -11,74 +11,107 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
+  Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useAuth } from '../../../context/AuthProvider';
 import { theme } from '../../theme/tokens';
 import RequestService, { Request, RequestStatus } from '../../../services/request.service';
 import PostService from '../../../services/post.service';
+import PickupService, { Pickup, PickupStatus } from '../../../services/pickup.service';
 import NotificationBell from '../../components/NotificationBell';
+import { usePendingRequestsSummary } from '@/hooks/usePendingRequestsSummary';
 
-const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
+type Segment = 'incoming' | 'pickups';
+
+const REQUEST_STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
   ACCEPTED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'check-circle-outline' },
   REJECTED: { bg: '#FEF2F2', text: '#EF4444', icon: 'close-circle-outline' },
   WITHDRAWN: { bg: '#F4F4F4', text: '#6D7A6E', icon: 'undo-outline' },
 };
 
+const PICKUP_STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string }> = {
+  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
+  REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline' },
+  ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline' },
+  IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline' },
+  COMPLETED: { bg: '#E8F8EE', text: '#1E5631', icon: 'check-circle-outline' },
+  CANCELED: { bg: '#FEF2F2', text: '#EF4444', icon: 'cancel-outline' },
+};
+
 const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-export default function CitizenIncomingRequestsScreen() {
+const getQuantityUnit = (category: string) => {
+  const liquidCategories = ['ORGANIC', 'HAZARDOUS'];
+  return liquidCategories.includes(category) ? 'L' : 'kg';
+};
+
+export default function CitizenRequestsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const firstName = user?.name?.split(' ')[0] || 'Supplier';
+  const { summary: pendingSummary, refresh: refreshPending } = usePendingRequestsSummary();
 
+  const [activeSegment, setActiveSegment] = useState<Segment>('incoming');
   const [requests, setRequests] = useState<Request[]>([]);
+  const [pickups, setPickups] = useState<Pickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  const loadRequests = async (isRefresh = false) => {
+  const loadAllData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-      setError(null);
-
-      // Fetch all posts by this user
+      // Load incoming requests
       const myPosts = await PostService.getMyPosts();
       const postIds = myPosts.map(p => p.id);
 
       if (postIds.length === 0) {
         setRequests([]);
-        return;
+      } else {
+        const allRequests = await Promise.all(
+          postIds.map(postId => RequestService.getRequestsForPost(postId))
+        );
+        const flattened = allRequests.flat().sort((a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        setRequests(flattened);
       }
 
-      // Fetch requests for all user's posts
-      const allRequests = await Promise.all(
-        postIds.map(postId => RequestService.getRequestsForPost(postId))
-      );
+      // Load pickups
+      const allPickups = await PickupService.getAllPickups();
+      const myPickups = allPickups.filter(p => p.owner_id === user?.id);
+      myPickups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setPickups(myPickups);
 
-      // Flatten and sort by most recent first
-      const flattened = allRequests.flat().sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setRequests(flattened);
     } catch (err: any) {
-      console.error('Failed to load incoming requests:', err);
-      setError(err?.response?.data?.message || 'Failed to load requests');
+      console.error('Failed to load data:', err);
+      setError(err?.response?.data?.message || 'Failed to load data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    loadAllData();
+  }, [loadAllData]);
 
-  const handleRefresh = () => loadRequests(true);
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadAllData(true);
+    refreshPending();
+  };
 
-  const handleAccept = async (request: Request) => {
+  const handleAcceptRequest = async (request: Request) => {
     Alert.alert(
       'Accept Request',
       `Accept ${request.collector?.name || 'collector'}'s request for ${request.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(request.post?.category || '') ? 'L' : 'kg'}?`,
@@ -90,6 +123,9 @@ export default function CitizenIncomingRequestsScreen() {
             try {
               await RequestService.updateRequestStatus(request.id, RequestStatus.ACCEPTED);
               setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: RequestStatus.ACCEPTED } : r));
+              await refreshPending();
+              // Show success message temporarily
+              Alert.alert('Success', 'Accepted. A pickup was created', [{ text: 'OK' }]);
             } catch (err: any) {
               Alert.alert('Error', err?.response?.data?.message || 'Failed to accept request');
             }
@@ -99,10 +135,10 @@ export default function CitizenIncomingRequestsScreen() {
     );
   };
 
-  const handleReject = async (request: Request) => {
+  const handleRejectRequest = async (request: Request) => {
     Alert.alert(
       'Reject Request',
-      `Reject ${request.collector?.name || 'collector'}'s request? This will release the reserved quantity.`,
+      `Reject ${request.collector?.name || 'collector'}'s request?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -112,6 +148,7 @@ export default function CitizenIncomingRequestsScreen() {
             try {
               await RequestService.updateRequestStatus(request.id, RequestStatus.REJECTED);
               setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: RequestStatus.REJECTED } : r));
+              await refreshPending();
             } catch (err: any) {
               Alert.alert('Error', err?.response?.data?.message || 'Failed to reject request');
             }
@@ -121,16 +158,35 @@ export default function CitizenIncomingRequestsScreen() {
     );
   };
 
-  const renderRequest = ({ item }: { item: Request }) => {
-    const statusStyle = STATUS_STYLES[item.status as RequestStatus] || STATUS_STYLES.PENDING;
+  // Filter requests - only show PENDING for incoming segment
+  const filteredRequests = requests.filter(r => r.status === RequestStatus.PENDING);
+
+  // Filter pickups - grouped by status
+  const activePickups = pickups.filter(p =>
+    p.status === PickupStatus.PENDING ||
+    p.status === PickupStatus.REQUESTED ||
+    p.status === PickupStatus.ASSIGNED ||
+    p.status === PickupStatus.IN_TRANSIT
+  );
+  const completedPickups = pickups.filter(p =>
+    p.status === PickupStatus.COMPLETED ||
+    p.status === PickupStatus.CANCELED
+  );
+
+  const renderRequestCard = ({ item }: { item: Request }) => {
+    const statusStyle = REQUEST_STATUS_STYLES[item.status as RequestStatus] || REQUEST_STATUS_STYLES.PENDING;
     const postTitle = item.post?.title || `Post #${item.post_id}`;
     const postCategory = item.post?.category || 'Unknown';
     const requestedQty = item.requested_quantity;
-    const unit = ['ORGANIC', 'HAZARDOUS'].includes(postCategory) ? 'L' : 'kg';
+    const availableQty = item.post?.available_quantity ?? 0;
+    const totalQty = item.post?.quantity ?? 0;
+    const unit = getQuantityUnit(postCategory || '');
     const imageUrl = item.post?.images?.[0]?.url?.trim()
       ? item.post.images[0].url.replace('http://', 'https://')
       : null;
     const collectorName = item.collector?.name || 'Unknown Collector';
+
+    const canAccept = item.status === RequestStatus.PENDING && requestedQty <= availableQty;
 
     return (
       <Pressable onPress={() => router.push(`/citizen/request/${item.id}`)} style={styles.requestCard} accessibilityRole="button">
@@ -164,7 +220,9 @@ export default function CitizenIncomingRequestsScreen() {
               </View>
               <View style={styles.metaItem}>
                 <MaterialCommunityIcons name="scale" size={14} color={theme.colors.text.tertiary} />
-                <Text style={styles.metaText}>{requestedQty} {unit}</Text>
+                <Text style={styles.metaText}>
+                  {requestedQty} / {totalQty} {unit} available
+                </Text>
               </View>
             </View>
           </View>
@@ -172,10 +230,15 @@ export default function CitizenIncomingRequestsScreen() {
 
         {item.status === RequestStatus.PENDING && (
           <View style={styles.actionBar}>
+            {!canAccept && (
+              <Text style={styles.warningText}>
+                Exceeds available quantity
+              </Text>
+            )}
             <Pressable
               onPress={(e) => {
                 e.stopPropagation();
-                handleReject(item);
+                handleRejectRequest(item);
               }}
               style={styles.rejectButton}
               accessibilityLabel="Reject request"
@@ -185,9 +248,10 @@ export default function CitizenIncomingRequestsScreen() {
             <Pressable
               onPress={(e) => {
                 e.stopPropagation();
-                handleAccept(item);
+                handleAcceptRequest(item);
               }}
-              style={styles.acceptButton}
+              disabled={!canAccept}
+              style={[styles.acceptButton, !canAccept && styles.acceptButtonDisabled]}
               accessibilityLabel="Accept request"
             >
               <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
@@ -215,13 +279,90 @@ export default function CitizenIncomingRequestsScreen() {
     );
   };
 
+  const renderPickupCard = (pickup: Pickup) => {
+    const statusStyle = PICKUP_STATUS_STYLES[pickup.status] || PICKUP_STATUS_STYLES.PENDING;
+    const post = pickup.post;
+    const total = post?.quantity ?? 0;
+    const unit = getQuantityUnit(post?.category || '');
+    const collectedWeight = pickup.collected_weight;
+    const requestedQty = pickup.request?.requested_quantity;
+    const postTitle = post?.title || `Post #${pickup.post_id}`;
+
+    let rawUrl = post?.images?.[0]?.url?.trim();
+    if (!rawUrl) {
+      rawUrl = 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80';
+    } else if (rawUrl.includes('cloudinary.com') && rawUrl.startsWith('http://')) {
+      rawUrl = rawUrl.replace('http://', 'https://');
+    }
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => router.push(`/pickups/${pickup.id}`)}
+        style={styles.pickupCard}
+      >
+        <View style={styles.cardHeader}>
+          <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
+            <MaterialCommunityIcons name={statusStyle.icon as any} size={16} color={statusStyle.text} />
+            <Text style={{ color: statusStyle.text, ...styles.statusText }}>
+              {formatStatus(pickup.status)}
+            </Text>
+          </View>
+          <Text style={styles.dateText}>
+            {pickup.scheduled_date
+              ? new Date(pickup.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              : 'ASAP'}
+          </Text>
+        </View>
+
+        <View style={styles.cardContent}>
+          <View style={styles.imageWrapper}>
+            <View style={styles.imagePlaceholder}>
+              <MaterialCommunityIcons name="recycle" size={24} color={statusStyle.text} />
+            </View>
+          </View>
+
+          <View style={styles.infoWrapper}>
+            <Text style={styles.postTitle} numberOfLines={2}>{postTitle}</Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <MaterialCommunityIcons name="calendar" size={14} color={theme.colors.text.tertiary} />
+                <Text style={styles.metaText}>
+                  {pickup.scheduled_date
+                    ? new Date(pickup.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+                    : 'ASAP'}
+                </Text>
+              </View>
+              {pickup.start_time && (
+                <View style={styles.metaItem}>
+                  <MaterialCommunityIcons name="clock" size={14} color={theme.colors.text.tertiary} />
+                  <Text style={styles.metaText}>{pickup.start_time} - {pickup.end_time}</Text>
+                </View>
+              )}
+              {collectedWeight !== null && (
+                <View style={styles.metaItem}>
+                  <MaterialCommunityIcons name="scale" size={14} color={theme.colors.success} />
+                  <Text style={styles.metaText}>{collectedWeight} {unit} collected</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Segments
+  const segments: Segment[] = ['incoming', 'pickups'];
+  const segmentLabels: Record<Segment, string> = { incoming: 'Incoming', pickups: 'Pickups' };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.header}>
           <View style={styles.heading}>
             <Text style={styles.title}>Hello, {firstName}!</Text>
-            <Text style={styles.subtitle}>Incoming collection requests</Text>
+            <Text style={styles.subtitle}>Collection requests</Text>
           </View>
           <NotificationBell />
         </View>
@@ -249,9 +390,30 @@ export default function CitizenIncomingRequestsScreen() {
       <View style={styles.header}>
         <View style={styles.heading}>
           <Text style={styles.title}>Hello, {firstName}!</Text>
-          <Text style={styles.subtitle}>Incoming collection requests</Text>
+          <Text style={styles.subtitle}>Collection requests</Text>
         </View>
         <NotificationBell />
+      </View>
+
+      {/* Segment Control */}
+      <View style={styles.segmentContainer}>
+        {segments.map((segment) => (
+          <TouchableOpacity
+            key={segment}
+            onPress={() => setActiveSegment(segment)}
+            style={[
+              styles.segmentButton,
+              activeSegment === segment && styles.segmentButtonActive
+            ]}
+          >
+            <Text style={[
+              styles.segmentText,
+              activeSegment === segment && styles.segmentTextActive
+            ]}>
+              {segmentLabels[segment]}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {error && (
@@ -264,32 +426,65 @@ export default function CitizenIncomingRequestsScreen() {
         </View>
       )}
 
-      <FlatList
-        data={requests}
-        keyExtractor={item => item.id.toString()}
-        renderItem={renderRequest}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.emerald[500]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name="clipboard-outline"
-              size={56}
-              color={theme.colors.text.tertiary}
+      {activeSegment === 'incoming' ? (
+        <FlatList
+          data={filteredRequests}
+          keyExtractor={item => item.id.toString()}
+          renderItem={renderRequestCard}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.colors.emerald[500]}
             />
-            <Text style={styles.emptyTitle}>No incoming requests</Text>
-            <Text style={styles.emptyDescription}>
-              When collectors request your posts, they&apos;ll appear here.
-            </Text>
-          </View>
-        }
-      />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="clipboard-outline"
+                size={56}
+                color={theme.colors.text.tertiary}
+              />
+              <Text style={styles.emptyTitle}>No incoming requests</Text>
+              <Text style={styles.emptyDescription}>
+                When collectors request your posts, they&apos;ll appear here.
+              </Text>
+            </View>
+          }
+        />
+      ) : (
+        <View style={styles.pickupContainer}>
+          {pickups.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons
+                name="package-variant-closed"
+                size={56}
+                color={theme.colors.text.tertiary}
+              />
+              <Text style={styles.emptyTitle}>No pickups yet</Text>
+              <Text style={styles.emptyDescription}>
+                Pickups will appear when collectors accept your requests.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {activePickups.length > 0 && (
+                <View style={styles.pickupSection}>
+                  <Text style={styles.sectionTitle}>Active Pickups</Text>
+                  {activePickups.map(renderPickupCard)}
+                </View>
+              )}
+              {completedPickups.length > 0 && (
+                <View style={styles.pickupSection}>
+                  <Text style={styles.sectionTitle}>Completed</Text>
+                  {completedPickups.map(renderPickupCard)}
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -321,7 +516,90 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: theme.typography.fontFamily.regular,
   },
+  segmentContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  segmentButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  segmentButtonActive: {
+    borderBottomColor: theme.colors.emerald[500],
+  },
+  segmentText: {
+    fontSize: 14,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+  },
+  segmentTextActive: {
+    fontFamily: theme.typography.fontFamily.semiBold,
+    color: theme.colors.emerald[500],
+  },
+  errorBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF9EC',
+    borderWidth: 1,
+    borderColor: '#F2E3C4',
+    borderRadius: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: '#9B5B12',
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.medium,
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: theme.colors.emerald[500],
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  loadingList: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  listContent: {
+    paddingBottom: 24,
+  },
+  pickupContainer: {
+    flex: 1,
+  },
+  pickupSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
   requestCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.xl,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  pickupCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: theme.colors.border.default,
@@ -402,6 +680,13 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border.light,
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'center',
+  },
+  warningText: {
+    color: theme.colors.error,
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    marginRight: 8,
   },
   rejectButton: {
     flex: 1,
@@ -426,6 +711,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.emerald[500],
     borderRadius: theme.radius.md,
   },
+  acceptButtonDisabled: {
+    backgroundColor: theme.colors.text.tertiary,
+  },
   acceptButtonText: {
     color: '#FFFFFF',
     fontSize: 13,
@@ -445,35 +733,6 @@ const styles = StyleSheet.create({
   viewPickupButtonText: {
     color: theme.colors.emerald[600],
     fontSize: 13,
-    fontFamily: theme.typography.fontFamily.semiBold,
-  },
-  errorBanner: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#FFF9EC',
-    borderWidth: 1,
-    borderColor: '#F2E3C4',
-    borderRadius: 12,
-  },
-  errorText: {
-    flex: 1,
-    color: '#9B5B12',
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  retryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: theme.colors.emerald[500],
-    borderRadius: 8,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 12,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   emptyState: {
@@ -496,14 +755,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.typography.fontFamily.regular,
     lineHeight: 20,
-  },
-  loadingList: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  listContent: {
-    paddingBottom: 24,
   },
   skeletonCard: {
     marginBottom: 12,

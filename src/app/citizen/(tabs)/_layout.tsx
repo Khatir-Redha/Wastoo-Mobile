@@ -13,7 +13,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { height: 0 }, // hide default; we use custom
+        tabBarStyle: { height: 0 },
       }}
       tabBar={() => <CustomTabBar />}
     >
@@ -48,12 +48,12 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="pickups"
-        options={{ title: "Pickups" }}
+        name="requests"
+        options={{ title: "Requests" }}
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            router.push("/citizen/pickups");
+            router.push("/citizen/requests");
           },
         }}
       />
