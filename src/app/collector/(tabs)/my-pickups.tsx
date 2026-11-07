@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -11,11 +11,12 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
 import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
-import NotificationBell from '../../../components/NotificationBell';
+import ScreenHeader from '../../../components/collector/ScreenHeader';
 
 const STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
@@ -38,7 +39,7 @@ export default function CollectorMyPickupsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPickups = async (isRefresh = false) => {
+  const loadPickups = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
@@ -46,7 +47,7 @@ export default function CollectorMyPickupsScreen() {
 
       const allPickups = await PickupService.getAllPickups();
       // Filter for current user's pickups as collector
-      const myPickups = allPickups.filter(p => p.collector_id === user?._id);
+      const myPickups = allPickups.filter(p => p.collector_id === user?.id);
 
       // Sort by most recent first
       myPickups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -59,11 +60,11 @@ export default function CollectorMyPickupsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    loadPickups();
-  }, []);
+    loadPickups(false);
+  }, [loadPickups]);
 
   const handleRefresh = () => loadPickups(true);
 
@@ -80,17 +81,28 @@ export default function CollectorMyPickupsScreen() {
     router.push(`/collector/pickup/confirm?id=${id}`);
   };
 
+  // Group pickups by status
+  const activePickups = pickups.filter(p =>
+    p.status === PickupStatus.PENDING ||
+    p.status === PickupStatus.REQUESTED ||
+    p.status === PickupStatus.ASSIGNED ||
+    p.status === PickupStatus.IN_TRANSIT
+  );
+
+  const completedPickups = pickups.filter(p =>
+    p.status === PickupStatus.COMPLETED ||
+    p.status === PickupStatus.CANCELED
+  );
+
   const renderPickup = ({ item }: { item: Pickup }) => {
     const statusStyle = STATUS_STYLES[item.status as PickupStatus] || STATUS_STYLES.PENDING;
     const postTitle = item.post?.title || `Post #${item.post_id}`;
 
-    const onPress = () => router.push(`/collector/pickup/${item.id}`);
-
     return (
-      <Pressable onPress={onPress} style={styles.pickupCard} accessibilityRole="button">
+      <Pressable onPress={() => router.push(`/collector/pickup/${item.id}`)} style={styles.pickupCard} accessibilityRole="button">
         <View style={styles.cardHeader}>
           <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
-            <MaterialCommunityIcons name={statusStyle.icon} size={16} color={statusStyle.text} />
+            <MaterialCommunityIcons name={statusStyle.icon as any} size={16} color={statusStyle.text} />
             <Text style={{ color: statusStyle.text, ...styles.statusText }}>
               {formatStatus(item.status)}
             </Text>
@@ -183,13 +195,7 @@ export default function CollectorMyPickupsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
-        <View style={styles.header}>
-          <View style={styles.heading}>
-            <Text style={styles.title}>Hello, {firstName}!</Text>
-            <Text style={styles.subtitle}>Your active collections</Text>
-          </View>
-          <NotificationBell />
-        </View>
+        <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your collections" />
         <ScrollView contentContainerStyle={styles.loadingList} showsVerticalScrollIndicator={false}>
           {[1, 2, 3].map(i => (
             <View key={i} style={styles.skeletonCard}>
@@ -210,13 +216,7 @@ export default function CollectorMyPickupsScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.heading}>
-          <Text style={styles.title}>Hello, {firstName}!</Text>
-          <Text style={styles.subtitle}>Your active collections</Text>
-        </View>
-        <NotificationBell />
-      </View>
+      <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your active collections" />
 
       {error && (
         <View style={styles.errorBanner}>
@@ -263,27 +263,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.canvas.secondary,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
+  listContent: {
+    paddingBottom: 24,
   },
-  heading: {
-    flex: 1,
-  },
-  title: {
-    color: theme.colors.forest[500],
-    fontSize: 22,
-    fontFamily: theme.typography.fontFamily.bold,
-  },
-  subtitle: {
-    marginTop: 3,
-    color: theme.colors.text.secondary,
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.regular,
+  loadingList: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   pickupCard: {
     backgroundColor: '#FFFFFF',
@@ -366,6 +352,7 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border.light,
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -412,7 +399,7 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     marginHorizontal: 16,
-    marginTop: 8,
+    marginTop: 16,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -459,14 +446,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.typography.fontFamily.regular,
     lineHeight: 20,
-  },
-  loadingList: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  listContent: {
-    paddingBottom: 24,
   },
   skeletonCard: {
     marginBottom: 12,

@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -10,11 +10,14 @@ import {
   View,
   FlatList,
   RefreshControl,
+  Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
 import RequestService, { Request, RequestStatus, GetMyRequestsResponse } from '../../../../services/request.service';
-import NotificationBell from '../../../components/NotificationBell';
+import ScreenHeader from '../../../components/collector/ScreenHeader';
+import { ListSkeleton } from '../../../components/ui/Skeleton';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B' },
@@ -33,12 +36,11 @@ export default function CollectorRequestsScreen() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'>('ALL');
 
-  const loadRequests = async (isRefresh = false) => {
-    const targetPage = isRefresh ? 1 : page;
+  const loadRequests = useCallback(async (isRefresh = false) => {
+    const targetPage = 1; // We'll get all requests, not paginated
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
@@ -46,17 +48,17 @@ export default function CollectorRequestsScreen() {
 
       const response: GetMyRequestsResponse = await RequestService.getMyRequests({
         page: targetPage,
-        limit: 20,
+        limit: 100, // Large limit to get all requests
       });
 
-      if (isRefresh) {
-        setRequests(response.data);
-      } else {
-        setRequests(prev => [...prev, ...response.data]);
+      let data = response.data;
+
+      // Apply status filter
+      if (filter !== 'ALL') {
+        data = data.filter(r => r.status === filter);
       }
 
-      setHasMore(targetPage < response.meta.totalPages);
-      setPage(targetPage + 1);
+      setRequests(data);
     } catch (err: any) {
       console.error('Failed to load requests:', err);
       setError(err?.response?.data?.message || 'Failed to load requests');
@@ -64,15 +66,42 @@ export default function CollectorRequestsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [filter]);
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    loadRequests(false);
+  }, [loadRequests]);
 
   const handleRefresh = () => loadRequests(true);
-  const handleLoadMore = () => {
-    if (!loading && hasMore) loadRequests(false);
+
+  const handleWithdraw = async (requestId: number) => {
+    Alert.alert(
+      'Withdraw Request',
+      'Are you sure you want to withdraw this request?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Withdraw',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await RequestService.withdrawRequest(requestId);
+              setRequests(prev => prev.filter(r => r.id !== requestId));
+            } catch (err: any) {
+              Alert.alert('Error', err?.response?.data?.message || 'Failed to withdraw request');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Group requests by status
+  const groupedRequests = {
+    PENDING: requests.filter(r => r.status === RequestStatus.PENDING),
+    ACCEPTED: requests.filter(r => r.status === RequestStatus.ACCEPTED),
+    REJECTED: requests.filter(r => r.status === RequestStatus.REJECTED),
+    WITHDRAWN: requests.filter(r => r.status === RequestStatus.WITHDRAWN),
   };
 
   const renderRequest = ({ item }: { item: Request }) => {
@@ -85,18 +114,14 @@ export default function CollectorRequestsScreen() {
       ? item.post.images[0].url.replace('http://', 'https://')
       : null;
 
-    const onPress = () => {
-      if (item.status === RequestStatus.ACCEPTED && item.pickup) {
-        router.push(`/collector/pickup/${item.pickup.id}`);
-      } else {
-        router.push(`/collector/request/${item.id}`);
-      }
-    };
-
     return (
-      <Pressable onPress={onPress} style={styles.requestCard} accessibilityRole="button">
+      <Pressable
+        onPress={() => router.push(`/collector/request/${item.id}`)}
+        style={styles.requestCard}
+        accessibilityRole="button"
+      >
         <View style={styles.cardHeader}>
-          <View style={styles.statusBadge} style={[{ backgroundColor: statusStyle.bg }]}>
+          <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
             <Text style={{ color: statusStyle.text, ...styles.statusText }}>
               {formatStatus(item.status)}
             </Text>
@@ -109,21 +134,6 @@ export default function CollectorRequestsScreen() {
         <View style={styles.cardContent}>
           {imageUrl && (
             <View style={styles.imageWrapper}>
-              <View
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: statusStyle.bg,
-                  opacity: 0.1,
-                }}
-              />
-              <View
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: 'transparent',
-                }}
-              />
               <View style={styles.imagePlaceholder}>
                 <MaterialCommunityIcons name="recycle" size={24} color={statusStyle.text} />
               </View>
@@ -147,33 +157,30 @@ export default function CollectorRequestsScreen() {
           </View>
         </View>
 
-        {(item.status === RequestStatus.PENDING || item.status === RequestStatus.ACCEPTED) && (
-          <View style={styles.actionBar}>
-            {item.status === RequestStatus.PENDING && (
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  // Withdraw request
-                }}
-                style={styles.withdrawButton}
-                accessibilityLabel="Withdraw request"
-              >
-                <Text style={styles.withdrawButtonText}>Withdraw</Text>
-              </Pressable>
-            )}
-            {item.status === RequestStatus.ACCEPTED && item.pickup && (
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  router.push(`/collector/pickup/${item.pickup.id}`);
-                }}
-                style={styles.viewPickupButton}
-                accessibilityLabel="View pickup details"
-              >
-                <Text style={styles.viewPickupButtonText}>View Pickup</Text>
-              </Pressable>
-            )}
-          </View>
+        {item.status === RequestStatus.PENDING && (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              handleWithdraw(item.id);
+            }}
+            style={styles.withdrawButton}
+            accessibilityLabel="Withdraw request"
+          >
+            <Text style={styles.withdrawButtonText}>Withdraw</Text>
+          </Pressable>
+        )}
+
+        {item.status === RequestStatus.ACCEPTED && item.pickup && (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`/collector/pickup/${item.pickup!.id}`);
+            }}
+            style={styles.viewPickupButton}
+            accessibilityLabel="View pickup details"
+          >
+            <Text style={styles.viewPickupButtonText}>View Pickup</Text>
+          </Pressable>
         )}
       </Pressable>
     );
@@ -182,41 +189,19 @@ export default function CollectorRequestsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
-        <View style={styles.header}>
-          <View style={styles.heading}>
-            <Text style={styles.title}>Hello, {firstName}!</Text>
-            <Text style={styles.subtitle}>Your collection requests</Text>
-          </View>
-          <NotificationBell />
-        </View>
+        <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your requests" />
         <ScrollView contentContainerStyle={styles.loadingList} showsVerticalScrollIndicator={false}>
-          {[1, 2, 3].map(i => (
-            <View key={i} style={styles.skeletonCard}>
-              <View style={styles.skeletonHeader}>
-                <View style={styles.skeletonBadge} />
-                <View style={styles.skeletonDate} />
-              </View>
-              <View style={styles.skeletonContent}>
-                <View style={styles.skeletonLine} />
-                <View style={styles.skeletonShortLine} />
-                <View style={styles.skeletonMeta} />
-              </View>
-            </View>
-          ))}
+          <ListSkeleton count={5} />
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  const hasAnyRequests = requests.length > 0;
+
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.heading}>
-          <Text style={styles.title}>Hello, {firstName}!</Text>
-          <Text style={styles.subtitle}>Your collection requests</Text>
-        </View>
-        <NotificationBell />
-      </View>
+      <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your requests" />
 
       {error && (
         <View style={styles.errorBanner}>
@@ -227,6 +212,26 @@ export default function CollectorRequestsScreen() {
           </Pressable>
         </View>
       )}
+
+      <View style={styles.filterContainer}>
+        {(['ALL', 'PENDING', 'ACCEPTED', 'REJECTED', 'WITHDRAWN'] as const).map((status) => (
+          <Pressable
+            key={status}
+            onPress={() => setFilter(status)}
+            style={[
+              styles.filterButton,
+              filter === status && styles.filterButtonActive
+            ]}
+          >
+            <Text style={[
+              styles.filterText,
+              filter === status && styles.filterTextActive
+            ]}>
+              {formatStatus(status)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       <FlatList
         data={requests}
@@ -240,8 +245,6 @@ export default function CollectorRequestsScreen() {
             tintColor={theme.colors.emerald[500]}
           />
         }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <MaterialCommunityIcons
@@ -256,14 +259,6 @@ export default function CollectorRequestsScreen() {
           </View>
         }
       />
-
-      {hasMore && !loading && (
-        <View style={styles.loadMore}>
-          <Pressable onPress={handleLoadMore} style={styles.loadMoreButton}>
-            <Text style={styles.loadMoreText}>Load more</Text>
-          </Pressable>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -294,6 +289,41 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     fontSize: 13,
     fontFamily: theme.typography.fontFamily.regular,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.canvas.primary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.md,
+  },
+  filterButtonActive: {
+    backgroundColor: theme.colors.emerald[500],
+    borderColor: theme.colors.emerald[500],
+  },
+  filterText: {
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.secondary,
+  },
+  filterTextActive: {
+    color: theme.colors.text.inverse,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  loadingList: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  listContent: {
+    paddingBottom: 24,
   },
   requestCard: {
     backgroundColor: '#FFFFFF',
@@ -367,22 +397,18 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.medium,
     color: theme.colors.text.secondary,
   },
-  actionBar: {
-    padding: 14,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border.light,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
   withdrawButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: theme.colors.error,
+    borderColor: theme.colors.error[500],
     borderRadius: theme.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.md,
   },
   withdrawButtonText: {
-    color: theme.colors.error,
+    color: theme.colors.error[500],
     fontSize: 13,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
@@ -391,6 +417,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: theme.colors.emerald[500],
     borderRadius: theme.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.md,
   },
   viewPickupButtonText: {
     color: '#FFFFFF',
@@ -399,7 +428,7 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     marginHorizontal: 16,
-    marginTop: 8,
+    marginTop: 16,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,73 +475,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.typography.fontFamily.regular,
     lineHeight: 20,
-  },
-  loadMore: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  loadMoreButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    borderRadius: 999,
-  },
-  loadMoreText: {
-    color: theme.colors.text.secondary,
-    fontSize: 13,
-    fontFamily: theme.typography.fontFamily.medium,
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
-  loadingList: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  skeletonCard: {
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.xl,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-  },
-  skeletonHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 14,
-  },
-  skeletonBadge: {
-    width: 80,
-    height: 24,
-    borderRadius: 999,
-    backgroundColor: '#E5EEE9',
-  },
-  skeletonDate: {
-    width: 60,
-    height: 14,
-    borderRadius: 4,
-    backgroundColor: '#E5EEE9',
-  },
-  skeletonContent: {
-    padding: 14,
-    gap: 8,
-  },
-  skeletonLine: {
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: '#E5EEE9',
-    width: '70%',
-  },
-  skeletonShortLine: {
-    width: '40%',
-  },
-  skeletonMeta: {
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: '#E5EEE9',
-    width: '50%',
   },
 });
