@@ -10,7 +10,6 @@ import {
   View,
   FlatList,
   RefreshControl,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '../../../../context/AuthProvider';
@@ -21,6 +20,7 @@ import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup
 import NotificationBell from '../../../components/NotificationBell';
 import { usePendingRequestsSummary } from '@/hooks/usePendingRequestsSummary';
 import { getPostQuantities } from '../../../utils/post-quantities';
+import { ConfirmSheet, Toast, useToast } from '../../../components/ui';
 
 type Segment = 'incoming' | 'pickups';
 
@@ -32,7 +32,7 @@ const REQUEST_STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; i
 };
 
 const PICKUP_STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string }> = {
-  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
+  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clipboard-outline' },
   REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline' },
   ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline' },
   IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline' },
@@ -52,6 +52,7 @@ export default function CitizenRequestsScreen() {
   const { user } = useAuth();
   const firstName = user?.name?.split(' ')[0] || 'Supplier';
   const { refresh: refreshPending } = usePendingRequestsSummary();
+  const { showToast } = useToast();
 
   const [activeSegment, setActiveSegment] = useState<Segment>('incoming');
   const [requests, setRequests] = useState<Request[]>([]);
@@ -59,6 +60,12 @@ export default function CitizenRequestsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ConfirmSheet states
+  const [showAcceptSheet, setShowAcceptSheet] = useState(false);
+  const [showRejectSheet, setShowRejectSheet] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<Request | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const loadAllData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -106,51 +113,56 @@ export default function CitizenRequestsScreen() {
     loadAllData(true);
   };
 
-  const handleAcceptRequest = async (request: Request) => {
-    Alert.alert(
-      'Accept Request',
-      `Accept ${request.collector?.name || 'collector'}'s request for ${request.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(request.post?.category || '') ? 'L' : 'kg'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Accept',
-          onPress: async () => {
-            try {
-              await RequestService.updateRequestStatus(request.id, RequestStatus.ACCEPTED);
-              setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: RequestStatus.ACCEPTED } : r));
-              await refreshPending();
-              // Show success message temporarily
-              Alert.alert('Success', 'Accepted. A pickup was created', [{ text: 'OK' }]);
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to accept request');
-            }
-          }
-        }
-      ]
-    );
+  const handleAcceptPress = (request: Request) => {
+    setPendingRequest(request);
+    setShowAcceptSheet(true);
   };
 
-  const handleRejectRequest = async (request: Request) => {
-    Alert.alert(
-      'Reject Request',
-      `Reject ${request.collector?.name || 'collector'}'s request?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await RequestService.updateRequestStatus(request.id, RequestStatus.REJECTED);
-              setRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: RequestStatus.REJECTED } : r));
-              await refreshPending();
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to reject request');
-            }
-          }
-        }
-      ]
-    );
+  const handleRejectPress = (request: Request) => {
+    setPendingRequest(request);
+    setShowRejectSheet(true);
+  };
+
+  const handleAcceptConfirm = async () => {
+    if (!pendingRequest) return;
+    setActionLoading(true);
+    try {
+      const updatedRequest = await RequestService.updateRequestStatus(pendingRequest.id, RequestStatus.ACCEPTED);
+      if (updatedRequest.status === RequestStatus.ACCEPTED) {
+        setRequests(prev => prev.map(r => r.id === pendingRequest.id ? { ...r, status: RequestStatus.ACCEPTED, pickup: updatedRequest.pickup } : r));
+        await refreshPending();
+        showToast('Request accepted. A pickup was created.', 'success');
+      } else {
+        showToast('Failed to accept request', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to accept request', 'error');
+    } finally {
+      setActionLoading(false);
+      setShowAcceptSheet(false);
+      setPendingRequest(null);
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!pendingRequest) return;
+    setActionLoading(true);
+    try {
+      const updatedRequest = await RequestService.updateRequestStatus(pendingRequest.id, RequestStatus.REJECTED);
+      if (updatedRequest.status === RequestStatus.REJECTED) {
+        setRequests(prev => prev.map(r => r.id === pendingRequest.id ? { ...r, status: RequestStatus.REJECTED } : r));
+        await refreshPending();
+        showToast('Request rejected', 'success');
+      } else {
+        showToast('Failed to reject request', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to reject request', 'error');
+    } finally {
+      setActionLoading(false);
+      setShowRejectSheet(false);
+      setPendingRequest(null);
+    }
   };
 
   // Filter requests - only show PENDING for incoming segment
@@ -219,7 +231,7 @@ export default function CitizenRequestsScreen() {
               <View style={styles.metaItem}>
                 <MaterialCommunityIcons name="scale" size={14} color={theme.colors.text.tertiary} />
                 <Text style={styles.metaText}>
-                  {requestedQty} / {totalQty} {unit} available
+                  {requestedQty} {unit} requested · {availableQty} {unit} available
                 </Text>
               </View>
             </View>
@@ -236,20 +248,21 @@ export default function CitizenRequestsScreen() {
             <Pressable
               onPress={(e) => {
                 e.stopPropagation();
-                handleRejectRequest(item);
+                handleRejectPress(item);
               }}
               style={styles.rejectButton}
               accessibilityLabel="Reject request"
+              disabled={actionLoading}
             >
               <Text style={styles.rejectButtonText}>Reject</Text>
             </Pressable>
             <Pressable
               onPress={(e) => {
                 e.stopPropagation();
-                handleAcceptRequest(item);
+                handleAcceptPress(item);
               }}
-              disabled={!canAccept}
-              style={[styles.acceptButton, !canAccept && styles.acceptButtonDisabled]}
+              disabled={!canAccept || actionLoading}
+              style={[styles.acceptButton, (!canAccept || actionLoading) && styles.acceptButtonDisabled]}
               accessibilityLabel="Accept request"
             >
               <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
@@ -496,6 +509,39 @@ export default function CitizenRequestsScreen() {
           )}
         </View>
       )}
+
+      {/* ConfirmSheets */}
+      {pendingRequest && (
+        <>
+          <ConfirmSheet
+            visible={showAcceptSheet}
+            onClose={() => { setShowAcceptSheet(false); setPendingRequest(null); }}
+            title="Accept Request"
+            message={`Accept ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || `Post #${pendingRequest.post_id}`}"?`}
+            confirmText="Accept"
+            cancelText="Cancel"
+            onConfirm={handleAcceptConfirm}
+            loading={actionLoading}
+            variant="default"
+            icon="check-circle-outline"
+          />
+
+          <ConfirmSheet
+            visible={showRejectSheet}
+            onClose={() => { setShowRejectSheet(false); setPendingRequest(null); }}
+            title="Reject Request"
+            message={`Reject ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || `Post #${pendingRequest.post_id}`}"?`}
+            confirmText="Reject"
+            cancelText="Cancel"
+            onConfirm={handleRejectConfirm}
+            loading={actionLoading}
+            variant="destructive"
+            icon="close-circle-outline"
+          />
+        </>
+      )}
+
+      <Toast visible={false} message="" />
     </SafeAreaView>
   );
 }
@@ -706,6 +752,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.error,
     borderRadius: theme.radius.md,
     alignItems: 'center',
+    minHeight: 44,
   },
   rejectButtonText: {
     color: theme.colors.error,
@@ -721,6 +768,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: theme.colors.emerald[500],
     borderRadius: theme.radius.md,
+    minHeight: 44,
   },
   acceptButtonDisabled: {
     backgroundColor: theme.colors.text.tertiary,
@@ -740,6 +788,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.emerald[500],
     borderRadius: theme.radius.md,
+    minHeight: 44,
   },
   viewPickupButtonText: {
     color: theme.colors.emerald[600],

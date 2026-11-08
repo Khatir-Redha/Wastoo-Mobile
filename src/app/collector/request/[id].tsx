@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ActivityIndicator, TouchableOpacity, Alert,
+  View, Text, ActivityIndicator, TouchableOpacity,
   ScrollView, Image, SafeAreaView, Platform, StyleSheet
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import PostService, { Post } from '../../../../services/post.service';
 import { theme } from '../../../theme/tokens';
 import ScreenHeader from '../../../components/collector/ScreenHeader';
 import { getPostQuantities } from '../../../utils/post-quantities';
+import { ConfirmSheet, useToast } from '../../../components/ui';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
@@ -23,11 +24,15 @@ const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.
 export default function CollectorRequestDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [request, setRequest] = useState<Request | null>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // ConfirmSheet states
+  const [showWithdrawSheet, setShowWithdrawSheet] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -47,30 +52,23 @@ export default function CollectorRequestDetailScreen() {
     if (id) load();
   }, [id]);
 
-  const handleWithdraw = async () => {
-    Alert.alert(
-      'Withdraw Request',
-      'Are you sure you want to withdraw this request?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Withdraw',
-          style: 'destructive',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await RequestService.withdrawRequest(Number(id));
-              setRequest(prev => prev ? { ...prev, status: RequestStatus.WITHDRAWN } : prev);
-              router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to withdraw request');
-            } finally {
-              setActionLoading(false);
-            }
-          }
-        }
-      ]
-    );
+  const handleWithdrawConfirm = async () => {
+    setActionLoading(true);
+    try {
+      await RequestService.withdrawRequest(Number(id));
+      setRequest(prev => prev ? { ...prev, status: RequestStatus.WITHDRAWN } : prev);
+      showToast('Request withdrawn', 'success');
+      router.back();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to withdraw request', 'error');
+    } finally {
+      setActionLoading(false);
+      setShowWithdrawSheet(false);
+    }
+  };
+
+  const handleWithdrawPress = () => {
+    setShowWithdrawSheet(true);
   };
 
   if (loading) {
@@ -199,7 +197,7 @@ export default function CollectorRequestDetailScreen() {
         <View style={styles.actionsSection}>
           {request.status === RequestStatus.PENDING && (
             <TouchableOpacity
-              onPress={handleWithdraw}
+              onPress={handleWithdrawPress}
               disabled={actionLoading}
               style={[styles.withdrawButton, actionLoading && styles.buttonDisabled]}
             >
@@ -230,6 +228,20 @@ export default function CollectorRequestDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* ConfirmSheet */}
+      <ConfirmSheet
+        visible={showWithdrawSheet}
+        onClose={() => setShowWithdrawSheet(false)}
+        title="Withdraw Request"
+        message="Are you sure you want to withdraw this request? The reserved quantity will be released."
+        confirmText="Withdraw"
+        cancelText="Cancel"
+        onConfirm={handleWithdrawConfirm}
+        loading={actionLoading}
+        variant="destructive"
+        icon="undo-outline"
+      />
     </SafeAreaView>
   );
 }

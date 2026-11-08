@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "../../context/AuthProvider";
 import { getAuthRoute } from "../../lib/auth-profile";
 import SessionExpiredModal from "../components/SessionExpiredModal";
 import { LoadingScreen } from "../components/ui/LoadingScreen";
+import { ToastProvider } from "../components/ui/Toast";
 import "../global.css";
 
 function NavigationGuard() {
@@ -125,7 +126,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
-          <NavigationGuard />
+          <ToastProvider>
+            <NavigationGuard />
+          </ToastProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

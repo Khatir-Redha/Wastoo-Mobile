@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ActivityIndicator, TouchableOpacity, Alert,
+  View, Text, ActivityIndicator, TouchableOpacity,
   ScrollView, SafeAreaView, StyleSheet
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import PostService, { Post } from '../../../../services/post.service';
 import { Image } from 'expo-image';
 import { theme } from '../../../theme/tokens';
 import { getPostQuantities } from '../../../utils/post-quantities';
+import { ConfirmSheet, useToast } from '../../../components/ui';
 
 const STATUS_STYLES: Record<RequestStatus, { bg: string; text: string; icon: string }> = {
   PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
@@ -23,11 +24,16 @@ const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.
 export default function CitizenRequestDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [request, setRequest] = useState<Request | null>(null);
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // ConfirmSheet states
+  const [showAcceptSheet, setShowAcceptSheet] = useState(false);
+  const [showRejectSheet, setShowRejectSheet] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -47,53 +53,50 @@ export default function CitizenRequestDetailScreen() {
     if (id) load();
   }, [id]);
 
-  const handleAccept = async () => {
-    Alert.alert(
-      'Accept Request',
-      `Accept ${request?.collector?.name || 'collector'}'s request for ${request?.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(request?.post?.category || '') ? 'L' : 'kg'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Accept',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await RequestService.updateRequestStatus(Number(id), RequestStatus.ACCEPTED);
-              setRequest(prev => prev ? { ...prev, status: RequestStatus.ACCEPTED } : prev);
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to accept request');
-            } finally {
-              setActionLoading(false);
-            }
-          }
-        }
-      ]
-    );
+  const handleAcceptPress = () => {
+    setShowAcceptSheet(true);
   };
 
-  const handleReject = async () => {
-    Alert.alert(
-      'Reject Request',
-      `Reject ${request?.collector?.name || 'collector'}'s request? This will release the reserved quantity.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              await RequestService.updateRequestStatus(Number(id), RequestStatus.REJECTED);
-              setRequest(prev => prev ? { ...prev, status: RequestStatus.REJECTED } : prev);
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to reject request');
-            } finally {
-              setActionLoading(false);
-            }
-          }
-        }
-      ]
-    );
+  const handleRejectPress = () => {
+    setShowRejectSheet(true);
+  };
+
+  const handleAcceptConfirm = async () => {
+    setActionLoading(true);
+    try {
+      const updatedRequest = await RequestService.updateRequestStatus(Number(id), RequestStatus.ACCEPTED);
+      if (updatedRequest.status === RequestStatus.ACCEPTED) {
+        setRequest(updatedRequest);
+        showToast('Request accepted. A pickup was created.', 'success');
+        // Navigate back to requests list
+        router.back();
+      } else {
+        showToast('Failed to accept request', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to accept request', 'error');
+    } finally {
+      setActionLoading(false);
+      setShowAcceptSheet(false);
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    setActionLoading(true);
+    try {
+      const updatedRequest = await RequestService.updateRequestStatus(Number(id), RequestStatus.REJECTED);
+      if (updatedRequest.status === RequestStatus.REJECTED) {
+        setRequest(updatedRequest);
+        showToast('Request rejected', 'success');
+      } else {
+        showToast('Failed to reject request', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to reject request', 'error');
+    } finally {
+      setActionLoading(false);
+      setShowRejectSheet(false);
+    }
   };
 
   if (loading) {
@@ -135,7 +138,7 @@ export default function CitizenRequestDetailScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Back">
           <Feather name="arrow-left" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Request #{request.id}</Text>
@@ -169,7 +172,7 @@ export default function CitizenRequestDetailScreen() {
               <View style={styles.postMeta}>
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="scale" size={14} color={theme.colors.text.tertiary} />
-                  <Text style={styles.metaText}>{requestedQty} {unit} requested</Text>
+                  <Text style={styles.metaText}>{requestedQty} {unit} requested · {availableQty ?? 0} {unit} available</Text>
                 </View>
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="tag" size={14} color={theme.colors.text.tertiary} />
@@ -178,14 +181,6 @@ export default function CitizenRequestDetailScreen() {
                   </Text>
                 </View>
               </View>
-              {availableQty !== null && (
-                <View style={styles.metaItem}>
-                  <MaterialCommunityIcons name="package-variant" size={14} color={theme.colors.emerald[600]} />
-                  <Text style={{ ...styles.metaText, color: theme.colors.emerald[600] }}>
-                    {availableQty} {unit} available
-                  </Text>
-                </View>
-              )}
               {post?.address && (
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="map-marker" size={14} color={theme.colors.text.tertiary} />
@@ -250,72 +245,85 @@ export default function CitizenRequestDetailScreen() {
           </View>
         )}
 
-        {/* Actions */}
-        <View style={styles.actionsSection}>
-          {request.status === RequestStatus.PENDING && (
-            <>
-              <TouchableOpacity
-                onPress={handleReject}
-                disabled={actionLoading}
-                style={[styles.rejectButton, actionLoading && styles.buttonDisabled]}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="close" size={18} color="#FFFFFF" />
-                    <Text style={styles.rejectButtonText}>Reject Request</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleAccept}
-                disabled={actionLoading}
-                style={[styles.acceptButton, actionLoading && styles.buttonDisabled]}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" />
-                    <Text style={styles.acceptButtonText}>Accept Request</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-
-          {request.status === RequestStatus.REJECTED && (
-            <View style={styles.rejectedNotice}>
-              <MaterialCommunityIcons name="information-outline" size={18} color={theme.colors.text.tertiary} />
-              <Text style={styles.rejectedText}>
-                This request was declined. The reserved quantity has been released.
-              </Text>
-            </View>
-          )}
-
-          {request.status === RequestStatus.WITHDRAWN && (
-            <View style={styles.withdrawnNotice}>
-              <MaterialCommunityIcons name="information-outline" size={18} color={theme.colors.text.tertiary} />
-              <Text style={styles.withdrawnText}>
-                The collector withdrew this request. The reserved quantity has been released.
-              </Text>
-            </View>
-          )}
-
-          {request.status === RequestStatus.ACCEPTED && !request.pickup && (
-            <TouchableOpacity
-              onPress={() => {
-                router.push(`/pickups/create?post_id=${request.post_id}&from_request=${request.id}`);
-              }}
-              style={styles.createPickupButton}
-            >
-              <MaterialCommunityIcons name="truck-plus-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.createPickupButtonText}>Create Pickup</Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </ScrollView>
+
+      {/* Bottom Action Bar - Fixed at bottom */}
+      {request.status === RequestStatus.PENDING && (
+        <View style={styles.bottomActionBar}>
+          <TouchableOpacity
+            onPress={handleRejectPress}
+            disabled={actionLoading}
+            style={[styles.rejectButton, actionLoading && styles.buttonDisabled]}
+            activeOpacity={0.8}
+          >
+            {actionLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="close" size={18} color="#FFFFFF" />
+                <Text style={styles.rejectButtonText}>Reject</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleAcceptPress}
+            disabled={actionLoading}
+            style={[styles.acceptButton, actionLoading && styles.buttonDisabled]}
+            activeOpacity={0.8}
+          >
+            {actionLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="check" size={18} color="#FFFFFF" />
+                <Text style={styles.acceptButtonText}>Accept</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {request.status === RequestStatus.ACCEPTED && !request.pickup && (
+        <View style={styles.bottomActionBar}>
+          <TouchableOpacity
+            onPress={() => {
+              router.push(`/pickups/create?post_id=${request.post_id}&from_request=${request.id}`);
+            }}
+            style={styles.createPickupButton}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="truck-plus-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.createPickupButtonText}>Create Pickup</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ConfirmSheets */}
+      <ConfirmSheet
+        visible={showAcceptSheet}
+        onClose={() => setShowAcceptSheet(false)}
+        title="Accept Request"
+        message={`Accept ${collectorName}'s request for ${requestedQty} ${unit} of "${postTitle}"?`}
+        confirmText="Accept"
+        cancelText="Cancel"
+        onConfirm={handleAcceptConfirm}
+        loading={actionLoading}
+        variant="default"
+        icon="check-circle-outline"
+      />
+
+      <ConfirmSheet
+        visible={showRejectSheet}
+        onClose={() => setShowRejectSheet(false)}
+        title="Reject Request"
+        message={`Reject ${collectorName}'s request for ${requestedQty} ${unit} of "${postTitle}"?`}
+        confirmText="Reject"
+        cancelText="Cancel"
+        onConfirm={handleRejectConfirm}
+        loading={actionLoading}
+        variant="destructive"
+        icon="close-circle-outline"
+      />
     </SafeAreaView>
   );
 }
@@ -373,7 +381,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   statusSection: {
     alignItems: 'center',
@@ -519,12 +527,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
-  actionsSection: {
-    paddingHorizontal: 4,
-    paddingTop: 8,
+  // Bottom Action Bar - Fixed at bottom with safe area
+  bottomActionBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingBottom: 0,
+    paddingTop: 12,
+    backgroundColor: theme.colors.canvas.primary,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border.default,
+    flexDirection: 'row',
     gap: 12,
+    minHeight: 52 + 34, // 52px button + iOS home indicator area
   },
   rejectButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -532,6 +552,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: theme.colors.error,
     borderRadius: theme.radius.md,
+    minHeight: 52,
   },
   rejectButtonText: {
     color: '#FFFFFF',
@@ -539,6 +560,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   acceptButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -546,6 +568,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: theme.colors.emerald[500],
     borderRadius: theme.radius.md,
+    minHeight: 52,
   },
   acceptButtonText: {
     color: '#FFFFFF',
@@ -556,6 +579,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   createPickupButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -563,6 +587,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: theme.colors.emerald[600],
     borderRadius: theme.radius.md,
+    minHeight: 52,
   },
   createPickupButtonText: {
     color: '#FFFFFF',

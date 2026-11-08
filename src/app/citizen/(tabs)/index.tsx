@@ -114,14 +114,14 @@ export default function CitizenHomeScreen() {
         </View>
         {pendingRequestsCount > 0 && (
           <Card variant="elevated" style={{ marginTop: theme.spacing.md, padding: theme.spacing.md, borderRadius: theme.radius.xl, backgroundColor: '#FFF8E1', borderWidth: 1, borderColor: '#FFE082' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, flexWrap: 'wrap' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
                 <MaterialCommunityIcons name="clipboard-alert-outline" size={20} color={theme.colors.warning} style={{ marginRight: theme.spacing.sm }} />
                 <Text style={{ fontSize: theme.typography.fontSize.md.size, fontFamily: theme.typography.fontFamily.semiBold, color: theme.colors.warning }}>
                   {pendingRequestsCount} pending request{pendingRequestsCount > 1 ? 's' : ''} awaiting review
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => router.push('/citizen/my-posts')} style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, backgroundColor: theme.colors.warning, borderRadius: theme.radius.md }}>
+              <TouchableOpacity onPress={() => router.push('/citizen/my-posts')} style={{ paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, backgroundColor: theme.colors.warning, borderRadius: theme.radius.md, minWidth: 80, alignItems: 'center' }}>
                 <Text style={{ color: theme.colors.text.inverse, fontSize: theme.typography.fontSize.sm.size, fontFamily: theme.typography.fontFamily.semiBold }}>Review</Text>
               </TouchableOpacity>
             </View>

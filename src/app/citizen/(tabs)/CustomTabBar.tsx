@@ -10,7 +10,7 @@ import { usePendingRequestsSummary } from "@/hooks/usePendingRequestsSummary";
 const TAB_CONFIG: Record<string, { label: string; icon: string; iconLib: "Feather" | "MaterialCommunityIcons" }> = {
   index: { label: "Home", icon: "home-variant-outline", iconLib: "MaterialCommunityIcons" },
   "my-posts": { label: "My Posts", icon: "bar-chart-2", iconLib: "Feather" },
-  requests: { label: "Requests", icon: "package-variant-closed", iconLib: "MaterialCommunityIcons" },
+  requests: { label: "Requests", icon: "clipboard-outline", iconLib: "MaterialCommunityIcons" },
   profile: { label: "Profile", icon: "user", iconLib: "Feather" },
 };
 
