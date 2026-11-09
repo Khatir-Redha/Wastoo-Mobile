@@ -28,6 +28,9 @@ export interface Request {
     category: string;
     quantity?: number;
     available_quantity?: number;
+    reserved_quantity?: number;
+    collected_quantity?: number;
+    pending_requested_quantity?: number;
     images: Array<{ url: string }>;
     author_id: number;
   };

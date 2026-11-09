@@ -53,6 +53,8 @@ export interface Post {
   longitude?: number | null;
   reserved_quantity?: number | null;
   collected_quantity?: number | null;
+  available_quantity?: number;
+  pending_requested_quantity?: number;
   author?: PostAuthor;
   User?: PostAuthor;
   requests?: Array<{
@@ -61,7 +63,6 @@ export interface Post {
     requested_quantity: number;
     collector?: { id: number; name: string };
   }>;
-  available_quantity?: number;
 }
 
 export interface PaginatedPosts {

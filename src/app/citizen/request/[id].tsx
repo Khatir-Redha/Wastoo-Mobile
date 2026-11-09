@@ -132,7 +132,7 @@ export default function CitizenRequestDetailScreen() {
 
   // Get quantities using the shared helper
   const postQuantities = getPostQuantities(post || request.post || null);
-  const availableQty = postQuantities.available;
+  const availableQty = postQuantities.available ?? 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -210,6 +210,21 @@ export default function CitizenRequestDetailScreen() {
           </View>
         </View>
 
+        {/* Pending Requests Info */}
+        {postQuantities.pendingRequested !== null && postQuantities.pendingRequested > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>PENDING REQUESTS</Text>
+            <View style={styles.pendingInfo}>
+              <View style={styles.pendingRow}>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={theme.colors.gold[500]} />
+                <Text style={styles.pendingText}>
+                  {postQuantities.pendingRequested} {unit} requested across pending request(s)
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Message */}
         {request.message && (
           <View style={styles.section}>
@@ -250,6 +265,15 @@ export default function CitizenRequestDetailScreen() {
       {/* Bottom Action Bar - Fixed at bottom */}
       {request.status === RequestStatus.PENDING && (
         <View style={styles.bottomActionBar}>
+          {/* Warning when requested > available */}
+          {requestedQty > availableQty && (
+            <View style={styles.warningBar}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={14} color={theme.colors.error} />
+              <Text style={styles.warningText}>
+                Requested {requestedQty} {unit} exceeds available {availableQty ?? 0} {unit}
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
             onPress={handleRejectPress}
             disabled={actionLoading}
@@ -267,8 +291,11 @@ export default function CitizenRequestDetailScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleAcceptPress}
-            disabled={actionLoading}
-            style={[styles.acceptButton, actionLoading && styles.buttonDisabled]}
+            disabled={actionLoading || requestedQty > availableQty}
+            style={[
+              styles.acceptButton,
+              (actionLoading || requestedQty > availableQty) && styles.buttonDisabled,
+            ]}
             activeOpacity={0.8}
           >
             {actionLoading ? (
@@ -593,6 +620,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  warningBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: theme.radius.md,
+    marginBottom: 12,
+  },
+  warningText: {
+    color: theme.colors.error,
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    flex: 1,
+  },
+  pendingInfo: {
+    padding: 4,
+  },
+  pendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pendingText: {
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.primary,
   },
   rejectedNotice: {
     flexDirection: 'row',

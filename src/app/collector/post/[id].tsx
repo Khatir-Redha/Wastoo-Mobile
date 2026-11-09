@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ActivityIndicator, TouchableOpacity, Alert,
+  View, Text, ActivityIndicator, TouchableOpacity,
   ScrollView, SafeAreaView, TextInput,
   StyleSheet, Platform
 } from 'react-native';
@@ -14,6 +14,7 @@ import RequestService, { RequestStatus } from '../../../../services/request.serv
 import ScreenHeader from '../../../components/collector/ScreenHeader';
 import { InlineLoader } from '../../../components/ui/LoadingScreen';
 import { getPostQuantities } from '../../../utils/post-quantities';
+import { useToast, ConfirmSheet } from '../../../components/ui';
 
 interface RequestResponse {
   id: number;
@@ -35,6 +36,7 @@ const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.
 export default function CollectorPostDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,9 @@ export default function CollectorPostDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<RequestResponse | null>(null);
+
+  // ConfirmSheet states
+  const [showWithdrawSheet, setShowWithdrawSheet] = useState(false);
 
   useEffect(() => {
     const loadPost = async () => {
@@ -77,33 +82,25 @@ export default function CollectorPostDetailScreen() {
   const availableForRequest = quantities.available ?? 0;
   const totalForDisplay = quantities.total ?? 0;
 
-  const handleWithdraw = async () => {
-    if (!pendingRequest) return;
+  const handleWithdrawPress = () => {
+    setShowWithdrawSheet(true);
+  };
 
-    Alert.alert(
-      'Withdraw Request',
-      'Are you sure you want to withdraw this request?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Withdraw',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-              await RequestService.withdrawRequest(pendingRequest.id);
-              setHasPendingRequest(false);
-              setPendingRequest(null);
-              router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to withdraw request');
-            } finally {
-              setSubmitting(false);
-            }
-          }
-        }
-      ]
-    );
+  const handleWithdrawConfirm = async () => {
+    if (!pendingRequest) return;
+    setSubmitting(true);
+    try {
+      await RequestService.withdrawRequest(pendingRequest.id);
+      setHasPendingRequest(false);
+      setPendingRequest(null);
+      showToast('Request withdrawn', 'success');
+      router.back();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Failed to withdraw request', 'error');
+    } finally {
+      setSubmitting(false);
+      setShowWithdrawSheet(false);
+    }
   };
 
   const handleSubmitRequest = async () => {
@@ -111,15 +108,15 @@ export default function CollectorPostDetailScreen() {
 
     const qty = Number(quantity);
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Invalid quantity', 'Please enter a valid quantity');
+      showToast('Please enter a valid quantity', 'error');
       return;
     }
     if (isQuantityUnavailable) {
-      Alert.alert('Quantity unavailable', 'Unable to request - quantity information is not available.');
+      showToast('Unable to request - quantity information is not available.', 'error');
       return;
     }
     if (qty > availableForRequest) {
-      Alert.alert('Not enough available', `Only ${availableForRequest} ${unit} available`);
+      showToast(`Only ${availableForRequest} ${unit} available`, 'error');
       return;
     }
 
@@ -130,10 +127,10 @@ export default function CollectorPostDetailScreen() {
         requested_quantity: qty,
         message: message.trim() || undefined,
       });
-      Alert.alert('Request Submitted', 'Your request has been sent. You can track it in the Requests tab.');
+      showToast('Request submitted. You can track it in the Requests tab.', 'success');
       router.back();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to submit request');
+      showToast(err?.response?.data?.message || 'Failed to submit request', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -229,7 +226,7 @@ export default function CollectorPostDetailScreen() {
 
             {pendingRequest.status === RequestStatus.PENDING && (
               <TouchableOpacity
-                onPress={handleWithdraw}
+                onPress={handleWithdrawPress}
                 disabled={submitting}
                 style={styles.withdrawButton}
               >
@@ -322,6 +319,20 @@ export default function CollectorPostDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ConfirmSheet */}
+      <ConfirmSheet
+        visible={showWithdrawSheet}
+        onClose={() => setShowWithdrawSheet(false)}
+        title="Withdraw Request"
+        message="Are you sure you want to withdraw this request?"
+        confirmText="Withdraw"
+        cancelText="Cancel"
+        onConfirm={handleWithdrawConfirm}
+        loading={submitting}
+        variant="destructive"
+        icon="undo-outline"
+      />
     </SafeAreaView>
   );
 }

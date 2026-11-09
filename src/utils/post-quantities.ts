@@ -8,6 +8,7 @@ export interface PostQuantities {
   available: number | null;
   reserved: number | null;
   collected: number | null;
+  pendingRequested: number | null;
   unit: 'kg' | 'L';
 }
 
@@ -21,6 +22,7 @@ type PostData = {
   total_quantity?: number | null;
   reserved_quantity?: number | null;
   collected_quantity?: number | null;
+  pending_requested_quantity?: number | null;
   weight?: number | null;
   status?: string;
   category?: string | WasteCategoryValue;
@@ -37,7 +39,7 @@ type PostData = {
  */
 export function getPostQuantities(post: PostData | null | undefined): PostQuantities {
   if (!post) {
-    return { total: null, available: null, reserved: null, collected: null, unit: 'kg' };
+    return { total: null, available: null, reserved: null, collected: null, pendingRequested: null, unit: 'kg' };
   }
 
   // Determine unit based on category or explicit unit field
@@ -66,6 +68,10 @@ export function getPostQuantities(post: PostData | null | undefined): PostQuanti
   const collected =
     typeof post.collected_quantity === 'number' && post.collected_quantity !== null ? post.collected_quantity : 0;
 
+  // Get pending requested from various possible field names, default to 0
+  const pendingRequested =
+    typeof post.pending_requested_quantity === 'number' && post.pending_requested_quantity !== null ? post.pending_requested_quantity : 0;
+
   // Get available - either explicitly provided or derived from total - reserved - collected
   const explicitAvailable = typeof post.available_quantity === 'number' && post.available_quantity !== null ? post.available_quantity : null;
   const available =
@@ -73,5 +79,5 @@ export function getPostQuantities(post: PostData | null | undefined): PostQuanti
     (total !== null ? Math.max(0, total - reserved - collected) : null);
 
   // Return nulls only when total itself is missing or not a number
-  return { total, available, reserved, collected, unit };
+  return { total, available, reserved, collected, pendingRequested, unit };
 }
