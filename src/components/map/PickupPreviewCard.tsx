@@ -71,7 +71,7 @@ export default function PickupPreviewCard({
           </View>
 
           <Text style={styles.metaText} numberOfLines={1}>
-            Post #{pickup.post?.id ?? pickup.id}
+            {pickup.post?.title || 'Unknown Post'}
           </Text>
           <View style={styles.distanceBadge}>
             <Feather name="navigation" size={12} color={theme.colors.emerald[600]} />

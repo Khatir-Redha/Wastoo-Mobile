@@ -101,7 +101,7 @@ export default function AvailablePickupsScreen() {
               <View className="flex-row items-center bg-[#E8F8EE] px-3 py-1.5 rounded-lg">
                 <MaterialCommunityIcons name="recycle" size={16} color="#1E5631" />
                 <Text className="text-[13px] text-[#1E5631] font-bold ml-1">
-                  Post #{item.post_id}
+                  {item.post?.title || 'Unknown Post'}
                 </Text>
               </View>
               

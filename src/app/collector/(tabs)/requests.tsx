@@ -108,7 +108,7 @@ export default function CollectorRequestsScreen() {
 
   const renderRequest = ({ item }: { item: Request }) => {
     const statusStyle = STATUS_STYLES[item.status as RequestStatus] || STATUS_STYLES.PENDING;
-    const postTitle = item.post?.title || `Post #${item.post_id}`;
+    const postTitle = item.post?.title || 'Unknown Post';
     const postCategory = item.post?.category || 'Unknown';
     const requestedQty = item.requested_quantity;
     const unit = ['ORGANIC', 'HAZARDOUS'].includes(postCategory) ? 'L' : 'kg';

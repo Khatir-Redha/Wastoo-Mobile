@@ -102,7 +102,7 @@ export default function MyPickupsHistoryScreen() {
               <View className="flex-row items-center bg-[#F4F4F4] px-3 py-1.5 rounded-lg">
                 <MaterialCommunityIcons name="recycle" size={14} color="#6D7A6E" />
                 <Text className="text-[12px] text-[#1b1c1c] font-bold ml-1 uppercase">
-                  Post #{item.post_id}
+                  {item.post?.title || 'Unknown Post'}
                 </Text>
               </View>
               

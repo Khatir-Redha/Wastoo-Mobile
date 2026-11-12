@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import PickupService from '../../../../services/pickup.service';
 import ScreenHeader from '../../../components/collector/ScreenHeader';
 import { theme } from '../../../theme/tokens';
+import Toast from '../../../components/ui/Toast';
 
 export default function PickupConfirmScreen() {
   const router = useRouter();
@@ -17,12 +18,18 @@ export default function PickupConfirmScreen() {
   const [weight, setWeight] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const handleComplete = async () => {
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleReport = async () => {
     const weightNum = parseFloat(weight);
 
-    if (!weight.trim() || isNaN(weightNum) || weightNum <= 0) {
-      Alert.alert('Invalid Weight', 'Please enter a valid collected weight greater than 0 kg.');
+    if (!weight.trim() || isNaN(weightNum) || weightNum < 0) {
+      Alert.alert('Invalid Weight', 'Please enter a valid collected weight (0 or greater).');
       return;
     }
     if (!confirmed) {
@@ -32,23 +39,16 @@ export default function PickupConfirmScreen() {
 
     setLoading(true);
     try {
-      await PickupService.updatePickup(Number(id), {
-        status: 'COMPLETED' as any,
-        collected_weight: weightNum,
-      });
+      // Report collected quantity - moves to COLLECTED_PENDING_VERIFICATION
+      await PickupService.reportCollection(Number(id), weightNum);
 
-      Alert.alert(
-        '✅ Pickup Completed Successfully',
-        `You have collected ${weightNum} kg of waste. Great work!`,
-        [
-          {
-            text: 'Return to Dashboard',
-            onPress: () => router.replace('/collector' as any),
-          },
-        ]
-      );
+      showToast('Collection reported, awaiting verification');
+
+      // Navigate back to pickups list
+      setTimeout(() => router.replace('/collector' as any), 1500);
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || err.message || 'Failed to complete pickup');
+      const msg = err?.response?.data?.message || err.message || 'Failed to report collection';
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function PickupConfirmScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScreenHeader title="Complete Pickup" showBell={true} />
+      <ScreenHeader title="Report Collected Quantity" showBell={true} />
 
       <ScrollView
         style={styles.content}
@@ -67,11 +67,11 @@ export default function PickupConfirmScreen() {
         {/* Icon + intro */}
         <View style={styles.introSection}>
           <View style={styles.introIcon}>
-            <Feather name="check-circle" size={36} color={theme.colors.emerald[600]} />
+            <Feather name="check-square" size={36} color={theme.colors.warning[500]} />
           </View>
-          <Text style={styles.introTitle}>Confirm Collection</Text>
+          <Text style={styles.introTitle}>Report Collected Quantity</Text>
           <Text style={styles.introDesc}>
-            Enter the actual weight of waste collected and confirm the collection below.
+            Enter the actual weight of waste collected. This will be sent to the supplier for verification.
           </Text>
         </View>
 
@@ -80,7 +80,7 @@ export default function PickupConfirmScreen() {
           Collected Weight (kg) <Text style={styles.requiredMarker}>*</Text>
         </Text>
         <View style={styles.weightInputContainer}>
-          <Feather name="layers" size={20} color={theme.colors.emerald[600]} />
+          <Feather name="layers" size={20} color={theme.colors.warning[500]} />
           <TextInput
             style={styles.weightInput}
             placeholder="0.0"
@@ -119,7 +119,7 @@ export default function PickupConfirmScreen() {
         <View style={styles.disclaimer}>
           <Feather name="alert-triangle" size={18} color={theme.colors.warning[500]} />
           <Text style={styles.disclaimerText}>
-            This action is final and cannot be undone. Make sure the weight is correct before submitting.
+            The supplier will verify this quantity. If they reject it, you'll need to re-collect.
           </Text>
         </View>
       </ScrollView>
@@ -128,13 +128,13 @@ export default function PickupConfirmScreen() {
       <View style={styles.buttonSection}>
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={handleComplete}
+          onPress={handleReport}
           disabled={loading}
           style={[
             styles.completeButton,
             loading && styles.completeButtonLoading,
             {
-              shadowColor: theme.colors.emerald[500],
+              shadowColor: theme.colors.warning[500],
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.3,
               shadowRadius: 8,
@@ -145,12 +145,14 @@ export default function PickupConfirmScreen() {
           {loading
             ? <ActivityIndicator color="white" />
             : <>
-                <Feather name="check-circle" size={20} color="white" />
-                <Text style={styles.completeButtonText}>Complete Pickup</Text>
+                <Feather name="send" size={20} color="white" />
+                <Text style={styles.completeButtonText}>Report & Send for Verification</Text>
               </>
           }
         </TouchableOpacity>
       </View>
+
+      {toast && <Toast visible={true} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </SafeAreaView>
   );
 }
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: theme.colors.emerald[50],
+    backgroundColor: '#FFF4E6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: theme.spacing.lg,
@@ -237,8 +239,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   checkboxConfirmed: {
-    backgroundColor: theme.colors.emerald[50],
-    borderColor: theme.colors.emerald[500],
+    backgroundColor: '#FFF4E6',
+    borderColor: '#F59E0B',
   },
   checkbox: {
     width: 24,
@@ -253,8 +255,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.canvas.primary,
   },
   checkboxChecked: {
-    backgroundColor: theme.colors.emerald[500],
-    borderColor: theme.colors.emerald[500],
+    backgroundColor: '#F59E0B',
+    borderColor: '#F59E0B',
   },
   checkboxLabel: {
     flex: 1,
@@ -264,7 +266,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   checkboxLabelConfirmed: {
-    color: theme.colors.forest[500],
+    color: '#E67E22',
     fontFamily: theme.typography.fontFamily.semiBold,
   },
   disclaimer: {
@@ -294,7 +296,7 @@ const styles = StyleSheet.create({
   },
   completeButton: {
     height: 56,
-    backgroundColor: theme.colors.emerald[500],
+    backgroundColor: '#F59E0B',
     borderRadius: theme.radius.md,
     flexDirection: 'row',
     alignItems: 'center',

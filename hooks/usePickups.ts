@@ -81,29 +81,30 @@ export const usePickups = () => {
     }
   };
 
-  const updateStatus = async (id: number) => {
+  const startTransit = async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      const updatedPickup = await PickupService.updateStatus(id);
+      const updatedPickup = await PickupService.startTransit(id);
       setPickups((prev) => prev.map((p) => (p.id === id ? updatedPickup : p)));
       return updatedPickup;
     } catch (err: any) {
-      setError(err.message || 'Failed to update status');
+      setError(err.message || 'Failed to start transit');
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  const deletePickup = async (id: number) => {
+  const cancelPickup = async (id: number) => {
     setLoading(true);
     setError(null);
     try {
-      await PickupService.deletePickup(id);
-      setPickups((prev) => prev.filter((p) => p.id !== id));
+      const updatedPickup = await PickupService.cancelPickup(id);
+      setPickups((prev) => prev.map((p) => (p.id === id ? updatedPickup : p)));
+      return updatedPickup;
     } catch (err: any) {
-      setError(err.message || 'Failed to delete pickup');
+      setError(err.message || 'Failed to cancel pickup');
       throw err;
     } finally {
       setLoading(false);
@@ -119,7 +120,7 @@ export const usePickups = () => {
     createPickup,
     updatePickup,
     assignCollector,
-    updateStatus,
-    deletePickup,
+    startTransit,
+    cancelPickup,
   };
 };

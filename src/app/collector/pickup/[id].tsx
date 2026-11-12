@@ -10,26 +10,31 @@ import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup
 import PostService, { Post } from '../../../../services/post.service';
 import { theme } from '../../../theme/tokens';
 import ScreenHeader from '../../../components/collector/ScreenHeader';
+import Toast from '../../../components/ui/Toast';
+import ConfirmSheet from '../../../components/ui/ConfirmSheet';
 
-// Timeline steps
+// Timeline steps - updated with new statuses
 const TIMELINE = [
   { key: 'PENDING',    label: 'Requested' },
   { key: 'ASSIGNED',  label: 'Assigned' },
   { key: 'IN_TRANSIT', label: 'In Transit' },
+  { key: 'COLLECTED_PENDING_VERIFICATION', label: 'Awaiting Verification' },
   { key: 'COMPLETED', label: 'Completed' },
 ];
 
 const getStatusStyle = (status: string) => {
   switch (status) {
-    case 'PENDING':    return { bg: '#FFF8E1', text: '#F59E0B' };
-    case 'ASSIGNED':   return { bg: '#EFF6FF', text: '#3B82F6' };
-    case 'IN_TRANSIT': return { bg: '#F5F3FF', text: '#8B5CF6' };
-    case 'COMPLETED':  return { bg: '#E8F8EE', text: '#1E5631' };
-    case 'CANCELED':   return { bg: '#FEF2F2', text: '#EF4444' };
-    case 'REQUESTED':  return { bg: '#E8F8EE', text: '#1E5631' };
-    default:           return { bg: '#F4F4F4', text: '#6D7A6E' };
+    case 'PENDING':    return { bg: '#FFF8E1', text: '#F59E0B', label: 'Pending' };
+    case 'ASSIGNED':   return { bg: '#EFF6FF', text: '#3B82F6', label: 'Assigned' };
+    case 'IN_TRANSIT': return { bg: '#F5F3FF', text: '#8B5CF6', label: 'In Transit' };
+    case 'COLLECTED_PENDING_VERIFICATION': return { bg: '#FFF4E6', text: '#E67E22', label: 'Awaiting Verification' };
+    case 'COMPLETED':  return { bg: '#E8F8EE', text: '#1E5631', label: 'Completed' };
+    case 'CANCELED':   return { bg: '#FEF2F2', text: '#EF4444', label: 'Cancelled' };
+    case 'REQUESTED':  return { bg: '#E8F8EE', text: '#1E5631', label: 'Requested' };
+    default:           return { bg: '#F4F4F4', text: '#6D7A6E', label: status };
   }
 };
+
 const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 export default function CollectorPickupDetailScreen() {
@@ -40,6 +45,39 @@ export default function CollectorPickupDetailScreen() {
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'cancel' | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleConfirmCancel = () => {
+    if (pendingAction === 'cancel') {
+      doCancelPickup();
+    }
+    setConfirmVisible(false);
+    setPendingAction(null);
+  };
+
+  const doCancelPickup = async () => {
+    if (!pickup) return;
+    setActionLoading(true);
+    try {
+      await PickupService.cancelPickup(pickup.id);
+      showToast('Pickup cancelled');
+      setPickup(prev => prev ? { ...prev, status: PickupStatus.CANCELED } : prev);
+      // Navigate back after a moment
+      setTimeout(() => router.back(), 1500);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to cancel pickup';
+      showToast(msg, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -62,15 +100,29 @@ export default function CollectorPickupDetailScreen() {
   }, [id]);
 
   const handleStartTransit = async () => {
+    if (!pickup) return;
     setActionLoading(true);
     try {
-      await PickupService.updateStatus(Number(id));
+      await PickupService.startTransit(pickup.id);
+      showToast('Pickup started');
       setPickup(prev => prev ? { ...prev, status: PickupStatus.IN_TRANSIT } : prev);
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || err.message || 'Failed to start transit');
+      const msg = err?.response?.data?.message || err.message || 'Failed to start transit';
+      showToast(msg, 'error');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleReportCollection = () => {
+    if (!pickup) return;
+    router.push(`/collector/pickup/confirm?id=${pickup.id}`);
+  };
+
+  const handleCancel = () => {
+    if (!pickup) return;
+    setPendingAction('cancel');
+    setConfirmVisible(true);
   };
 
   if (loading) {
@@ -106,12 +158,12 @@ export default function CollectorPickupDetailScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScreenHeader title={`Pickup #${pickup.id}`} showBell={true} />
+      <ScreenHeader title={post?.title || `Pickup #${pickup.id}`} showBell={true} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* ── Timeline ── */}
-        {pickup.status !== PickupStatus.CANCELED && (
+        {pickup.status !== PickupStatus.CANCELED && pickup.status !== PickupStatus.COMPLETED && (
           <View style={styles.timelineSection}>
             <Text style={styles.timelineLabel}>PROGRESS</Text>
             <View style={styles.timelineTrack}>
@@ -154,7 +206,14 @@ export default function CollectorPickupDetailScreen() {
         {pickup.status === PickupStatus.CANCELED && (
           <View style={[styles.canceledSection, styles.sectionCard]}>
             <Feather name="x-circle" size={22} color="#EF4444" />
-            <Text style={styles.canceledText}>This pickup was cancelled by the citizen.</Text>
+            <Text style={styles.canceledText}>This pickup was cancelled.</Text>
+          </View>
+        )}
+
+        {pickup.status === PickupStatus.COMPLETED && (
+          <View style={[styles.completedSection, styles.sectionCard]}>
+            <Feather name="check-circle" size={22} color="#1E5631" />
+            <Text style={styles.completedText}>Pickup completed successfully</Text>
           </View>
         )}
 
@@ -166,29 +225,49 @@ export default function CollectorPickupDetailScreen() {
               <Image source={{ uri: imageUrl }} style={styles.postImage} resizeMode="cover" />
               <View style={styles.postInfo}>
                 <Text style={styles.postTitle} numberOfLines={2}>
-                  {(post as any).title || 'Untitled Post'}
+                  {post.title || 'Untitled Post'}
                 </Text>
                 <Text style={styles.postCategory}>
-                  {(post as any).category}  •  {(post as any).quantity || 'N/A'} kg
+                  {post.category}  •  {post.quantity || 'N/A'} kg
                 </Text>
-                {(post as any).address && (
+                {post.address && (
                   <View style={styles.addressRow}>
                     <Feather name="map-pin" size={13} color="#8A8F87" />
                     <Text style={styles.addressText} numberOfLines={1}>
-                      {(post as any).address}
+                      {post.address}
                     </Text>
                   </View>
                 )}
               </View>
             </View>
           ) : (
-            <Text style={styles.postNotFound}>Post #{pickup.post_id}</Text>
+            <Text style={styles.postNotFound}>Unknown Post</Text>
           )}
 
           {post?.description && (
             <Text style={styles.postDescription}>{post.description}</Text>
           )}
         </View>
+
+        {/* ── Agreed Quantity ── */}
+        {pickup.request && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>AGREED QUANTITY</Text>
+            <View style={styles.quantityRow}>
+              <MaterialCommunityIcons name="weight-kilogram" size={24} color={theme.colors.emerald[600]} />
+              <View style={styles.quantityInfo}>
+                <Text style={styles.quantityLabel}>Agreed Quantity</Text>
+                <Text style={styles.quantityValue}>{pickup.request.requested_quantity} kg</Text>
+              </View>
+              {pickup.collected_weight !== null && pickup.collected_weight !== undefined && (
+                <View style={styles.quantityInfo}>
+                  <Text style={styles.quantityLabel}>Reported</Text>
+                  <Text style={styles.quantityValue}>{pickup.collected_weight} kg</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── Schedule ── */}
         <View style={styles.sectionCard}>
@@ -267,7 +346,7 @@ export default function CollectorPickupDetailScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons name="truck-fast-outline" size={22} color="white" />
-                <Text style={styles.actionButtonText}>Start Pickup (In Transit)</Text>
+                <Text style={styles.actionButtonText}>Start Pickup</Text>
               </>
             )}
           </TouchableOpacity>
@@ -275,12 +354,19 @@ export default function CollectorPickupDetailScreen() {
 
         {pickup.status === PickupStatus.IN_TRANSIT && (
           <TouchableOpacity
-            onPress={() => router.push(`/collector/pickup/confirm?id=${pickup.id}`)}
+            onPress={handleReportCollection}
             style={styles.actionButtonCompleted}
           >
-            <Feather name="check-circle" size={22} color="white" />
-            <Text style={styles.actionButtonText}>Complete Pickup</Text>
+            <Feather name="check-square" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Report Quantity</Text>
           </TouchableOpacity>
+        )}
+
+        {pickup.status === PickupStatus.COLLECTED_PENDING_VERIFICATION && (
+          <View style={styles.waitingContainer}>
+            <MaterialCommunityIcons name="clock-alert-outline" size={20} color={theme.colors.warning[500]} />
+            <Text style={styles.waitingText}>Waiting for supplier verification</Text>
+          </View>
         )}
 
         {pickup.status === PickupStatus.COMPLETED && (
@@ -290,16 +376,51 @@ export default function CollectorPickupDetailScreen() {
           </View>
         )}
 
-        {(pickup.status === PickupStatus.PENDING || pickup.status === PickupStatus.CANCELED) && (
+        {(pickup.status === PickupStatus.PENDING || pickup.status === PickupStatus.REQUESTED) && (
           <View style={styles.actionButtonDisabled}>
             <Text style={styles.disabledActionText}>
-              {pickup.status === PickupStatus.PENDING
-                ? 'Request pending - await assignment'
-                : 'Pickup was cancelled'}
+              Request pending - await assignment
             </Text>
           </View>
         )}
+
+        {pickup.status === PickupStatus.CANCELED && (
+          <View style={styles.actionButtonDisabled}>
+            <Text style={styles.disabledActionText}>
+              Pickup was cancelled
+            </Text>
+          </View>
+        )}
+
+        {/* Cancel button for active pickups */}
+        {(pickup.status === PickupStatus.ASSIGNED ||
+          pickup.status === PickupStatus.IN_TRANSIT ||
+          pickup.status === PickupStatus.COLLECTED_PENDING_VERIFICATION) && (
+          <TouchableOpacity
+            onPress={handleCancel}
+            disabled={actionLoading}
+            style={styles.cancelButton}
+          >
+            <MaterialCommunityIcons name="cancel" size={20} color={theme.colors.error} />
+            <Text style={styles.cancelButtonText}>Cancel Pickup</Text>
+          </TouchableOpacity>
+        )}
       </View>
+
+      {toast && <Toast visible={true} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <ConfirmSheet
+        visible={confirmVisible}
+        onClose={() => { setConfirmVisible(false); setPendingAction(null); }}
+        title="Cancel Pickup"
+        message="Are you sure you want to cancel this pickup? The reserved quantity will be released and the supplier can accept other requests."
+        confirmText="Yes, Cancel"
+        cancelText="No, Keep It"
+        onConfirm={handleConfirmCancel}
+        onCancel={() => { setConfirmVisible(false); setPendingAction(null); }}
+        loading={actionLoading}
+        variant="destructive"
+        icon="alert-circle-outline"
+      />
     </SafeAreaView>
   );
 }
@@ -317,7 +438,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 200,
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',
@@ -412,6 +533,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     flex: 1,
   },
+  completedSection: {
+    backgroundColor: '#E8F8EE',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: theme.radius.xl,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
+  completedText: {
+    color: '#1E5631',
+    fontFamily: theme.typography.fontFamily.bold,
+    fontSize: 15,
+    flex: 1,
+  },
   postRow: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -458,6 +596,24 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
     lineHeight: 20,
     marginTop: 8,
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quantityInfo: {
+    flex: 1,
+  },
+  quantityLabel: {
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
+  },
+  quantityValue: {
+    fontSize: 18,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
   },
   scheduleRow: {
     flexDirection: 'row',
@@ -555,7 +711,7 @@ const styles = StyleSheet.create({
   },
   actionButtonCompleted: {
     height: 56,
-    backgroundColor: '#1E5631',
+    backgroundColor: '#F59E0B',
     borderRadius: theme.radius.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -576,6 +732,24 @@ const styles = StyleSheet.create({
   },
   actionButtonDisabled: {
     backgroundColor: theme.colors.text.tertiary,
+    height: 56,
+    borderRadius: theme.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waitingContainer: {
+    height: 56,
+    backgroundColor: '#FFF4E6',
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  waitingText: {
+    fontSize: 16,
+    fontFamily: theme.typography.fontFamily.semiBold,
+    color: '#E67E22',
   },
   actionButtonText: {
     color: '#FFFFFF',
@@ -595,5 +769,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: theme.typography.fontFamily.medium,
     textAlign: 'center',
+  },
+  cancelButton: {
+    height: 48,
+    backgroundColor: '#FEF2F2',
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginTop: 8,
+  },
+  cancelButtonText: {
+    color: '#EF4444',
+    fontSize: 15,
+    fontFamily: theme.typography.fontFamily.semiBold,
   },
 });

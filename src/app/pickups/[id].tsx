@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Alert, Image, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, Image, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePickups } from '../../../hooks/usePickups';
@@ -10,12 +10,14 @@ import CancelPickupModal from '../../components/CancelPickupModal';
 import { Button, Card, StatusStepper } from '../../components/ui';
 import { theme } from '../../theme/tokens';
 import { useAuth } from '../../../context/AuthProvider';
+import { useToast } from '../../components/ui';
 
 export default function PickupDetailsScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { updateStatus, deletePickup, loading } = usePickups();
+  const { startTransit, cancelPickup, loading } = usePickups();
+  const { showToast } = useToast();
 
   const [pickup, setPickup] = useState<Pickup | null>(null);
   const [post, setPost] = useState<Post | null>(null);
@@ -46,22 +48,24 @@ export default function PickupDetailsScreen() {
 
   const handleStartTransit = async () => {
     try {
-      await updateStatus(Number(id));
+      await startTransit(Number(id));
       setPickup(prev => prev ? { ...prev, status: PickupStatus.IN_TRANSIT } : prev);
-      Alert.alert('Success', 'Pickup is now in transit!');
+      showToast('Pickup started', 'success');
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      const msg = err?.response?.data?.message || err.message || 'Failed to start transit';
+      showToast(msg, 'error');
     }
   };
 
   const handleCancelConfirm = async (reason: string, notes: string) => {
     setCancelModalVisible(false);
     try {
-      await deletePickup(Number(id));
-      Alert.alert('Cancelled', 'Pickup request has been cancelled.');
+      await cancelPickup(Number(id));
+      showToast('Pickup cancelled', 'success');
       router.back();
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      const msg = err?.response?.data?.message || err.message || 'Failed to cancel pickup';
+      showToast(msg, 'error');
     }
   };
 
@@ -189,13 +193,14 @@ export default function PickupDetailsScreen() {
 
       {/* Action Buttons */}
       <View style={styles.footer}>
-        {currentUserRole === 'CITIZEN' && (pickup.status === PickupStatus.PENDING || pickup.status === PickupStatus.ASSIGNED) && (
-          <Button
-            title="Cancel Pickup"
-            variant="danger"
-            size="lg"
+        {currentUserRole === 'CITIZEN' && (
+          <Pressable
             onPress={() => setCancelModalVisible(true)}
-          />
+            disabled={pickup.status === PickupStatus.COMPLETED || pickup.status === PickupStatus.CANCELED}
+            style={[styles.cancelButton, (pickup.status === PickupStatus.COMPLETED || pickup.status === PickupStatus.CANCELED) && styles.cancelButtonDisabled]}
+          >
+            <Text style={styles.cancelButtonText}>Cancel Pickup</Text>
+          </Pressable>
         )}
 
         {currentUserRole === 'COLLECTOR' && pickup.status === PickupStatus.ASSIGNED && (
@@ -217,6 +222,15 @@ export default function PickupDetailsScreen() {
             onPress={() => router.push(`/pickups/confirm?id=${pickup.id}`)}
             icon={<Feather name="check-circle" size={20} color={theme.colors.canvas.primary} />}
             iconPosition="right"
+          />
+        )}
+
+        {currentUserRole === 'CITIZEN' && pickup.status === PickupStatus.COLLECTED_PENDING_VERIFICATION && (
+          <Button
+            title="Verify Collection"
+            variant="primary"
+            size="lg"
+            onPress={() => router.push(`/pickups/verify?id=${pickup.id}`)}
           />
         )}
 
@@ -427,5 +441,25 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border.light,
     backgroundColor: theme.colors.canvas.primary,
+  },
+  cancelButton: {
+    height: 56,
+    backgroundColor: '#FEF2F2',
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 8,
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
+  },
+  cancelButtonText: {
+    color: '#EF4444',
+    fontSize: 17,
+    fontFamily: theme.typography.fontFamily.bold,
   },
 });

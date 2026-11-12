@@ -36,6 +36,7 @@ const PICKUP_STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; ico
   REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline' },
   ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline' },
   IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline' },
+  COLLECTED_PENDING_VERIFICATION: { bg: '#FFF4E6', text: '#E67E22', icon: 'package-variant-closed' },
   COMPLETED: { bg: '#E8F8EE', text: '#1E5631', icon: 'check-circle-outline' },
   CANCELED: { bg: '#FEF2F2', text: '#EF4444', icon: 'cancel-outline' },
 };
@@ -182,7 +183,7 @@ export default function CitizenRequestsScreen() {
 
   const renderRequestCard = ({ item }: { item: Request }) => {
     const statusStyle = REQUEST_STATUS_STYLES[item.status as RequestStatus] || REQUEST_STATUS_STYLES.PENDING;
-    const postTitle = item.post?.title || `Post #${item.post_id}`;
+    const postTitle = item.post?.title || 'Unknown Post';
     const postCategory = item.post?.category || 'Unknown';
     const requestedQty = item.requested_quantity;
 
@@ -295,7 +296,7 @@ export default function CitizenRequestsScreen() {
     const post = pickup.post;
     const unit = getQuantityUnit(post?.category || '');
     const collectedWeight = pickup.collected_weight;
-    const postTitle = post?.title || `Post #${pickup.post_id}`;
+    const postTitle = post?.title || 'Unknown Post';
 
     let rawUrl = post?.images?.[0]?.url?.trim();
     if (!rawUrl) {
@@ -517,7 +518,7 @@ export default function CitizenRequestsScreen() {
             visible={showAcceptSheet}
             onClose={() => { setShowAcceptSheet(false); setPendingRequest(null); }}
             title="Accept Request"
-            message={`Accept ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || `Post #${pendingRequest.post_id}`}"?`}
+            message={`Accept ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || 'Unknown Post'}"?`}
             confirmText="Accept"
             cancelText="Cancel"
             onConfirm={handleAcceptConfirm}
@@ -530,7 +531,7 @@ export default function CitizenRequestsScreen() {
             visible={showRejectSheet}
             onClose={() => { setShowRejectSheet(false); setPendingRequest(null); }}
             title="Reject Request"
-            message={`Reject ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || `Post #${pendingRequest.post_id}`}"?`}
+            message={`Reject ${pendingRequest.collector?.name || 'collector'}'s request for ${pendingRequest.requested_quantity} ${['ORGANIC', 'HAZARDOUS'].includes(pendingRequest.post?.category || '') ? 'L' : 'kg'} of "${pendingRequest.post?.title || 'Unknown Post'}"?`}
             confirmText="Reject"
             cancelText="Cancel"
             onConfirm={handleRejectConfirm}

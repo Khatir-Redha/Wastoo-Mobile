@@ -17,17 +17,17 @@ import { useAuth } from '../../../../context/AuthProvider';
 import { theme } from '../../../theme/tokens';
 import PickupService, { Pickup, PickupStatus } from '../../../../services/pickup.service';
 import ScreenHeader from '../../../components/collector/ScreenHeader';
+import Toast from '../../../components/ui/Toast';
 
-const STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string }> = {
-  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline' },
-  REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline' },
-  ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline' },
-  IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline' },
-  COMPLETED: { bg: '#E8F8EE', text: '#1E5631', icon: 'check-circle-outline' },
-  CANCELED: { bg: '#FEF2F2', text: '#EF4444', icon: 'cancel-outline' },
+const STATUS_STYLES: Record<PickupStatus, { bg: string; text: string; icon: string; label: string }> = {
+  PENDING: { bg: '#FFF8E1', text: '#F59E0B', icon: 'clock-outline', label: 'Pending' },
+  REQUESTED: { bg: '#E8F8EE', text: '#1E5631', icon: 'clipboard-outline', label: 'Requested' },
+  ASSIGNED: { bg: '#EFF6FF', text: '#3B82F6', icon: 'truck-outline', label: 'Assigned' },
+  IN_TRANSIT: { bg: '#F5F3FF', text: '#8B5CF6', icon: 'truck-fast-outline', label: 'In Transit' },
+  COLLECTED_PENDING_VERIFICATION: { bg: '#FFF4E6', text: '#E67E22', icon: 'package-variant-closed', label: 'Awaiting Verification' },
+  COMPLETED: { bg: '#E8F8EE', text: '#1E5631', icon: 'check-circle-outline', label: 'Completed' },
+  CANCELED: { bg: '#FEF2F2', text: '#EF4444', icon: 'cancel-outline', label: 'Cancelled' },
 };
-
-const formatStatus = (s: string) => s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
 export default function CollectorMyPickupsScreen() {
   const router = useRouter();
@@ -38,6 +38,12 @@ export default function CollectorMyPickupsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const loadPickups = useCallback(async (isRefresh = false) => {
     try {
@@ -70,10 +76,34 @@ export default function CollectorMyPickupsScreen() {
 
   const handleStartTransit = async (id: number) => {
     try {
-      await PickupService.updateStatus(id);
+      await PickupService.startTransit(id);
       setPickups(prev => prev.map(p => p.id === id ? { ...p, status: PickupStatus.IN_TRANSIT } : p));
+      showToast('Pickup started');
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to start transit');
+      const msg = err?.response?.data?.message || 'Failed to start transit';
+      showToast(msg, 'error');
+    }
+  };
+
+  const handleReportCollection = async (id: number, collectedWeight: number) => {
+    try {
+      await PickupService.reportCollection(id, collectedWeight);
+      setPickups(prev => prev.map(p => p.id === id ? { ...p, status: PickupStatus.COLLECTED_PENDING_VERIFICATION, collected_weight: collectedWeight } : p));
+      showToast('Collection reported, awaiting verification');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to report collection';
+      showToast(msg, 'error');
+    }
+  };
+
+  const handleCancelPickup = async (id: number) => {
+    try {
+      await PickupService.cancelPickup(id);
+      setPickups(prev => prev.map(p => p.id === id ? { ...p, status: PickupStatus.CANCELED } : p));
+      showToast('Pickup cancelled');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to cancel pickup';
+      showToast(msg, 'error');
     }
   };
 
@@ -89,14 +119,22 @@ export default function CollectorMyPickupsScreen() {
     p.status === PickupStatus.IN_TRANSIT
   );
 
+  const awaitingVerificationPickups = pickups.filter(p =>
+    p.status === PickupStatus.COLLECTED_PENDING_VERIFICATION
+  );
+
   const completedPickups = pickups.filter(p =>
-    p.status === PickupStatus.COMPLETED ||
+    p.status === PickupStatus.COMPLETED
+  );
+
+  const cancelledPickups = pickups.filter(p =>
     p.status === PickupStatus.CANCELED
   );
 
   const renderPickup = ({ item }: { item: Pickup }) => {
     const statusStyle = STATUS_STYLES[item.status as PickupStatus] || STATUS_STYLES.PENDING;
-    const postTitle = item.post?.title || `Post #${item.post_id}`;
+    const postTitle = item.post?.title || 'Unknown Post';
+    const agreedQty = item.request?.requested_quantity || 0;
 
     return (
       <Pressable onPress={() => router.push(`/collector/pickup/${item.id}`)} style={styles.pickupCard} accessibilityRole="button">
@@ -104,7 +142,7 @@ export default function CollectorMyPickupsScreen() {
           <View style={[{ backgroundColor: statusStyle.bg }, styles.statusBadge]}>
             <MaterialCommunityIcons name={statusStyle.icon as any} size={16} color={statusStyle.text} />
             <Text style={{ color: statusStyle.text, ...styles.statusText }}>
-              {formatStatus(item.status)}
+              {statusStyle.label}
             </Text>
           </View>
           <Text style={styles.dateText}>
@@ -132,6 +170,10 @@ export default function CollectorMyPickupsScreen() {
                     : 'ASAP'}
                 </Text>
               </View>
+              <View style={styles.metaItem}>
+                <MaterialCommunityIcons name="weight-kilogram" size={14} color={theme.colors.text.tertiary} />
+                <Text style={styles.metaText}>{agreedQty} kg agreed</Text>
+              </View>
               {item.start_time && (
                 <View style={styles.metaItem}>
                   <MaterialCommunityIcons name="clock" size={14} color={theme.colors.text.tertiary} />
@@ -142,7 +184,7 @@ export default function CollectorMyPickupsScreen() {
           </View>
         </View>
 
-        {(item.status === PickupStatus.ASSIGNED || item.status === PickupStatus.IN_TRANSIT) && (
+        {(item.status === PickupStatus.ASSIGNED || item.status === PickupStatus.IN_TRANSIT || item.status === PickupStatus.COLLECTED_PENDING_VERIFICATION) && (
           <View style={styles.actionBar}>
             {item.status === PickupStatus.ASSIGNED && (
               <Pressable
@@ -161,14 +203,20 @@ export default function CollectorMyPickupsScreen() {
               <Pressable
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleCompletePickup(item.id);
+                  router.push(`/collector/pickup/confirm?id=${item.id}`);
                 }}
-                style={styles.successButton}
-                accessibilityLabel="Complete pickup"
+                style={styles.reportButton}
+                accessibilityLabel="Report collected quantity"
               >
-                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
-                <Text style={styles.successButtonText}>Complete</Text>
+                <MaterialCommunityIcons name="clipboard-check" size={16} color="#FFFFFF" />
+                <Text style={styles.reportButtonText}>Report Quantity</Text>
               </Pressable>
+            )}
+            {item.status === PickupStatus.COLLECTED_PENDING_VERIFICATION && (
+              <View style={styles.waitingContainer}>
+                <MaterialCommunityIcons name="clock-alert-outline" size={16} color={theme.colors.warning[500]} />
+                <Text style={styles.waitingText}>Waiting for verification</Text>
+              </View>
             )}
           </View>
         )}
@@ -188,9 +236,22 @@ export default function CollectorMyPickupsScreen() {
             </Pressable>
           </View>
         )}
+
+        {item.status === PickupStatus.CANCELED && (
+          <View style={styles.actionBar}>
+            <Text style={styles.cancelledText}>This pickup was cancelled</Text>
+          </View>
+        )}
       </Pressable>
     );
   };
+
+  const renderGroupHeader = ({ title, count, defaultExpanded = true }: { title: string; count: number; defaultExpanded?: boolean }) => (
+    <View style={styles.groupHeader}>
+      <Text style={styles.groupTitle}>{title}</Text>
+      <Text style={styles.groupCount}>{count} pickup{count !== 1 ? 's' : ''}</Text>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -216,7 +277,7 @@ export default function CollectorMyPickupsScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your active collections" />
+      <ScreenHeader title={`Hello, ${firstName}!`} subtitle="Your collections" />
 
       {error && (
         <View style={styles.errorBanner}>
@@ -229,10 +290,28 @@ export default function CollectorMyPickupsScreen() {
       )}
 
       <FlatList
-        data={pickups}
-        keyExtractor={item => item.id.toString()}
-        renderItem={renderPickup}
-        contentContainerStyle={styles.listContent}
+        data={[
+          { section: 'Active', items: activePickups, defaultExpanded: true },
+          { section: 'Awaiting Verification', items: awaitingVerificationPickups, defaultExpanded: true },
+          { section: 'Completed', items: completedPickups, defaultExpanded: true },
+          { section: 'Cancelled', items: cancelledPickups, defaultExpanded: false },
+        ]}
+        keyExtractor={item => item.section}
+        renderItem={({ item }) => {
+          if (item.items.length === 0) return null;
+          return (
+            <View style={styles.section}>
+              {renderGroupHeader({ title: item.section, count: item.items.length, defaultExpanded: item.defaultExpanded })}
+              <FlatList
+                data={item.items}
+                keyExtractor={p => p.id.toString()}
+                renderItem={renderPickup}
+                contentContainerStyle={styles.listContent}
+              />
+            </View>
+          );
+        }}
+        contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -254,6 +333,8 @@ export default function CollectorMyPickupsScreen() {
           </View>
         }
       />
+
+      {toast && <Toast visible={true} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </SafeAreaView>
   );
 }
@@ -263,6 +344,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.canvas.secondary,
   },
+  listContainer: {
+    paddingBottom: 100,
+  },
   listContent: {
     paddingBottom: 24,
   },
@@ -270,6 +354,26 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  section: {
+    marginBottom: 8,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  groupTitle: {
+    fontSize: 14,
+    fontFamily: theme.typography.fontFamily.bold,
+    color: theme.colors.text.primary,
+  },
+  groupCount: {
+    fontSize: 12,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
   },
   pickupCard: {
     backgroundColor: '#FFFFFF',
@@ -335,6 +439,7 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
   },
   metaItem: {
     flexDirection: 'row',
@@ -368,6 +473,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: theme.typography.fontFamily.semiBold,
   },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F59E0B',
+    borderRadius: theme.radius.md,
+  },
+  reportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  waitingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFF4E6',
+    borderRadius: theme.radius.md,
+  },
+  waitingText: {
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: '#E67E22',
+  },
   successButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,6 +529,11 @@ const styles = StyleSheet.create({
     color: theme.colors.emerald[600],
     fontSize: 13,
     fontFamily: theme.typography.fontFamily.semiBold,
+  },
+  cancelledText: {
+    fontSize: 13,
+    fontFamily: theme.typography.fontFamily.medium,
+    color: theme.colors.text.tertiary,
   },
   errorBanner: {
     marginHorizontal: 16,

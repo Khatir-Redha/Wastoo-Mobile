@@ -6,7 +6,8 @@ export enum PickupStatus {
   IN_TRANSIT = 'IN_TRANSIT',
   COMPLETED = 'COMPLETED',
   CANCELED = 'CANCELED',
-  REQUESTED = 'REQUESTED'
+  REQUESTED = 'REQUESTED',
+  COLLECTED_PENDING_VERIFICATION = 'COLLECTED_PENDING_VERIFICATION'
 }
 
 export interface CreatePickupDto {
@@ -77,25 +78,24 @@ class PickupService {
   }
 
   /**
-   * Create a new pickup request.
-   * Only sends the fields the backend currently accepts.
-   * Extra UI fields (contact_number, access_notes, etc.) are kept locally only.
+   * Create a pickup from an accepted request (internal use)
    */
-  static async createPickup(data: CreatePickupDto): Promise<Pickup> {
-    // The backend schema only accepts these 4 fields right now.
-    // Strip any extra UI-only fields to avoid a 500 error.
-    const payload = {
-      post_id: data.post_id,
-      owner_id: data.owner_id,
-      status: data.status,
-      ...(data.collector_id !== undefined ? { collector_id: data.collector_id } : {}),
-    };
-    const response = await api.post('/pickup', payload);
+  static async createPickupFromRequest(requestId: number): Promise<Pickup> {
+    const response = await api.post(`/pickup/from-request/${requestId}`);
     return response.data;
   }
 
   /**
-   * Update an existing pickup request
+   * Create a new pickup (legacy - kept for backwards compatibility)
+   * Backend: POST /pickup
+   */
+  static async createPickup(data: CreatePickupDto): Promise<Pickup> {
+    const response = await api.post('/pickup', data);
+    return response.data;
+  }
+
+  /**
+   * Update an existing pickup
    */
   static async updatePickup(id: number, data: UpdatePickupDto): Promise<Pickup> {
     const response = await api.patch(`/pickup/${id}`, data);
@@ -103,26 +103,58 @@ class PickupService {
   }
 
   /**
-   * Assign collector to a pickup (Accept Pickup)
+   * Assign collector to pickup
+   * Backend: PATCH /pickup/:id/assign
    */
   static async assignCollector(id: number): Promise<Pickup> {
-    const response = await api.patch(`/pickup/accept/${id}`);
+    const response = await api.patch(`/pickup/${id}/assign`);
     return response.data;
   }
 
   /**
-   * Update pickup status to in transit
+   * Start pickup transit (collector starts pickup)
+   * Backend: PATCH /pickup/:id/start-transit
    */
-  static async updateStatus(id: number): Promise<Pickup> {
-    const response = await api.patch(`/pickup/${id}/updateStatus`);
+  static async startTransit(id: number): Promise<Pickup> {
+    const response = await api.patch(`/pickup/${id}/start-transit`);
     return response.data;
   }
 
   /**
-   * Delete or cancel a pickup
+   * Report collected quantity (collector)
+   * Backend: PATCH /pickup/:id/report-collection
+   * Transitions: IN_TRANSIT -> COLLECTED_PENDING_VERIFICATION
    */
-  static async deletePickup(id: number): Promise<void> {
-    const response = await api.delete(`/pickup/${id}`);
+  static async reportCollection(id: number, collected_weight: number): Promise<Pickup> {
+    const response = await api.patch(`/pickup/${id}/report-collection`, { collected_weight });
+    return response.data;
+  }
+
+  /**
+   * Verify or reject collection (supplier only)
+   * Backend: PATCH /pickup/:id/verify
+   * Transitions: COLLECTED_PENDING_VERIFICATION -> COMPLETED (verified=true)
+   *            or COLLECTED_PENDING_VERIFICATION -> IN_TRANSIT (verified=false)
+   */
+  static async verifyCollection(id: number, verified: boolean, collected_weight?: number): Promise<Pickup> {
+    const response = await api.patch(`/pickup/${id}/verify`, { verified, collected_weight });
+    return response.data;
+  }
+
+  /**
+   * Cancel pickup (collector or supplier)
+   * Backend: PATCH /pickup/:id/cancel
+   */
+  static async cancelPickup(id: number): Promise<Pickup> {
+    const response = await api.patch(`/pickup/${id}/cancel`);
+    return response.data;
+  }
+
+  /**
+   * Get pickup by ID
+   */
+  static async getPickupById(id: number): Promise<Pickup> {
+    const response = await api.get(`/pickup/${id}`);
     return response.data;
   }
 }
